@@ -1,124 +1,116 @@
 #!/usr/bin/env python3
-"""Script to test basic Cypher queries against the Knowledge Graph."""
+"""
+Agentic AI Knowledge Graph - Query Test Script
+
+Tests the knowledge graph with validation and domain-specific queries.
+"""
 
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.graph import Neo4jClient, MidCategory, SubCategory
+from src.graph import Neo4jClient
 
 
 def test_queries():
     """Run test queries to verify the knowledge graph."""
-    client = Neo4jClient()
-    
-    try:
-        client.connect()
-        
-        print("=" * 60)
-        print("🧪 Testing Knowledge Graph Queries")
-        print("=" * 60)
-        
-        # Test 1: Basic stats
-        print("\n📊 Test 1: Database Statistics")
+    print("=" * 60)
+    print("Agentic AI Knowledge Graph - Query Tests")
+    print("=" * 60)
+
+    with Neo4jClient() as client:
+        # Test 1: Basic statistics
+        print("\n[Test 1] Database Statistics")
         stats = client.get_stats()
-        print(f"  Nodes: {stats['total_nodes']}")
-        print(f"  Relationships: {stats['total_relationships']}")
-        
-        # Test 2: Search documents by keyword
-        print("\n🔍 Test 2: Search documents containing 'Reflexion'")
-        results = client.search_documents("Reflexion")
+        print(f"  Total Nodes: {stats.total_nodes}")
+        print(f"  Total Relationships: {stats.total_relationships}")
+        print("  Nodes by Label:")
+        for label, count in sorted(stats.nodes_by_label.items()):
+            print(f"    {label}: {count}")
+
+        # Test 2: Principles coverage
+        print("\n[Test 2] Principles Coverage (Methods + Implementations)")
+        coverage = client.get_principles_coverage()
+        for row in coverage:
+            print(f"  {row['principle']}: {row['method_count']} methods, {row['impl_count']} implementations")
+
+        # Test 3: Principle -> Method -> Implementation paths
+        print("\n[Test 3] Principle -> Method -> Implementation Paths (sample)")
+        paths = client.get_principle_method_impl_paths()
+        for i, path in enumerate(paths[:5]):  # Show first 5
+            impls = ", ".join(path["implementations"][:3])
+            if len(path["implementations"]) > 3:
+                impls += f" (+{len(path['implementations']) - 3} more)"
+            print(f"  {path['principle']} <- {path['method']} <- [{impls}]")
+        if len(paths) > 5:
+            print(f"  ... and {len(paths) - 5} more paths")
+
+        # Test 4: Method family distribution
+        print("\n[Test 4] Method Family Distribution")
+        families = client.get_method_family_distribution()
+        for row in families:
+            print(f"  {row['family']}: {row['count']}")
+
+        # Test 5: Standard compliance
+        print("\n[Test 5] Standard Compliance Status")
+        compliance = client.get_standard_compliance()
+        if compliance:
+            for row in compliance:
+                print(f"  {row['implementation']} -> {row['standard']} v{row['version']} ({row['role']}/{row['level']})")
+        else:
+            print("  No compliance relationships found")
+
+        # Test 6: Methods for a specific principle
+        print("\n[Test 6] Methods Addressing 'Reasoning' Principle")
+        methods = client.get_methods_by_principle("p:reasoning")
+        for m in methods[:5]:
+            print(f"  {m['name']} ({m['family']}) - role: {m['role']}, weight: {m['weight']}")
+        if len(methods) > 5:
+            print(f"  ... and {len(methods) - 5} more")
+
+        # Test 7: Implementations of ReAct
+        print("\n[Test 7] Implementations of ReAct Method")
+        impls = client.get_implementations_by_method("m:react")
+        for impl in impls:
+            print(f"  {impl['name']} ({impl['impl_type']}) - support: {impl['support_level']}")
+
+        # Test 8: Composite methods
+        print("\n[Test 8] Composite Methods and Their Components")
+        composites = client.get_composite_methods()
+        for c in composites:
+            print(f"  {c['composite_method']} = {' + '.join(c['components'])}")
+
+        # Test 9: Search methods
+        print("\n[Test 9] Search Methods Containing 'RAG'")
+        results = client.search_methods("RAG", limit=5)
         for r in results:
-            print(f"  - {r['title'][:50]}...")
-        
-        # Test 3: Get concepts by category
-        print("\n📂 Test 3: Concepts in 'Self-Reflection' category")
-        concepts = client.find_concepts_by_category(
-            sub_category=SubCategory.SELF_REFLECTION
-        )
-        for c in concepts:
-            print(f"  - {c.name}: {c.definition[:50] if c.definition else 'No definition'}...")
-        
-        # Test 4: Get document with related concepts
-        print("\n📄 Test 4: Document 'doc-reflexion' with concepts")
-        doc_data = client.get_document_with_concepts("doc-reflexion")
-        if doc_data:
-            print(f"  Document: {doc_data['document']['title']}")
-            print("  Related concepts:")
-            for item in doc_data['concepts']:
-                if item['concept']:
-                    print(f"    - [{item['relation']}] {item['concept']['name']}")
-        
-        # Test 5: Get related concepts (graph traversal)
-        print("\n🕸️  Test 5: Concepts related to 'Chain-of-Thought' (depth=2)")
-        related = client.get_related_concepts("concept-cot", depth=2)
-        for r in related:
-            print(f"  - {r['name']} (distance: {r['distance']})")
-        
-        # Test 6: Custom Cypher - Find papers that cite CoT
-        print("\n📑 Test 6: Documents that cite Chain-of-Thought paper")
-        query = """
-        MATCH (d:Document)-[:CITES]->(cited:Document {id: 'doc-cot'})
-        RETURN d.title AS title
-        """
-        results = client.run_cypher(query)
-        for r in results:
-            print(f"  - {r['title']}")
-        
-        # Test 7: Custom Cypher - Path between concepts
-        print("\n🛤️  Test 7: Path from LangGraph to Chain-of-Thought")
-        query = """
-        MATCH path = shortestPath(
-            (a:Concept {id: 'concept-langgraph'})-[*]-(b:Concept {id: 'concept-cot'})
-        )
-        RETURN [node in nodes(path) | 
-            CASE WHEN node:Concept THEN node.name ELSE node.title END
-        ] AS path_nodes
-        """
-        results = client.run_cypher(query)
-        for r in results:
-            print(f"  Path: {' -> '.join(r['path_nodes'])}")
-        
-        # Test 8: Custom Cypher - Competing tools
-        print("\n⚔️  Test 8: Competing tools/frameworks")
-        query = """
-        MATCH (a:Concept)-[:COMPETES_WITH]->(b:Concept)
-        RETURN a.name AS tool_a, b.name AS tool_b
-        """
-        results = client.run_cypher(query)
-        for r in results:
-            print(f"  - {r['tool_a']} vs {r['tool_b']}")
-        
-        # Test 9: Category distribution
-        print("\n📊 Test 9: Concepts by Mid-Category")
-        query = """
-        MATCH (c:Concept)
-        RETURN c.category_mid AS category, count(c) AS count
-        ORDER BY count DESC
-        """
-        results = client.run_cypher(query)
-        for r in results:
-            print(f"  - {r['category']}: {r['count']}")
-        
-        # Test 10: Most connected concepts
-        print("\n🌟 Test 10: Most connected concepts (by relationship count)")
-        query = """
-        MATCH (c:Concept)-[r]-()
-        RETURN c.name AS concept, count(r) AS connections
-        ORDER BY connections DESC
-        LIMIT 5
-        """
-        results = client.run_cypher(query)
-        for r in results:
-            print(f"  - {r['concept']}: {r['connections']} connections")
-        
+            print(f"  {r['name']} ({r['family']})")
+
+        # Test 10: Validation - Orphan checks
+        print("\n[Test 10] Data Quality Validation")
+
+        orphan_methods = client.get_orphan_methods()
+        print(f"  Methods without ADDRESSES -> Principle: {len(orphan_methods)}")
+        for m in orphan_methods[:3]:
+            print(f"    - {m['name']}")
+
+        orphan_impls = client.get_orphan_implementations()
+        print(f"  Implementations without IMPLEMENTS -> Method: {len(orphan_impls)}")
+        for i in orphan_impls[:3]:
+            print(f"    - {i['name']}")
+
+        no_paper = client.get_methods_without_paper()
+        print(f"  Methods without paper/seminal_source: {len(no_paper)}")
+
+        uncovered = client.get_uncovered_principles()
+        print(f"  Principles with no methods: {len(uncovered)}")
+        for p in uncovered:
+            print(f"    - {p['name']}")
+
         print("\n" + "=" * 60)
-        print("✅ All tests completed!")
+        print("All tests completed!")
         print("=" * 60)
-        
-    finally:
-        client.close()
 
 
 if __name__ == "__main__":

@@ -1,31 +1,42 @@
-"""Application configuration using Pydantic Settings."""
+"""Application configuration using dotenv."""
 
+import os
+from dataclasses import dataclass
 from functools import lru_cache
-from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
 
 
-class Settings(BaseSettings):
+@dataclass
+class Settings:
     """Application settings loaded from environment variables."""
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-    )
-
     # Neo4j
-    neo4j_uri: str = "bolt://localhost:7687"
-    neo4j_username: str = "neo4j"
+    neo4j_uri: str = ""
+    neo4j_username: str = ""
     neo4j_password: str = ""
+    neo4j_database: str = "neo4j"
 
     # LLM
     openai_api_key: str = ""
     anthropic_api_key: str = ""
-    default_llm: str = "anthropic"  # "openai" or "anthropic"
+    default_llm: str = "anthropic"
 
     # Application
     log_level: str = "INFO"
     environment: str = "development"
+
+    def __post_init__(self):
+        # Load from environment with uppercase keys
+        self.neo4j_uri = os.getenv("NEO4J_URI", self.neo4j_uri)
+        self.neo4j_username = os.getenv("NEO4J_USERNAME", self.neo4j_username)
+        self.neo4j_password = os.getenv("NEO4J_PASSWORD", self.neo4j_password)
+        self.neo4j_database = os.getenv("NEO4J_DATABASE", self.neo4j_database)
+        self.openai_api_key = os.getenv("OPENAI_API_KEY", self.openai_api_key)
+        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY", self.anthropic_api_key)
 
 
 @lru_cache

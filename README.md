@@ -41,6 +41,34 @@ Agentic AI 관련 논문, 아티클, 메모를 그래프로 구조화하고, 대
 │   Documents ←→ Concepts ←→ Authors ←→ Sources               │
 └─────────────────────────────────────────────────────────────┘
 ```
+  
+### AI Knowledge Graph 핵심 구조
+
+```
+Principle (11개 불변)
+    ↑ ADDRESSES
+  Method (연구 기법)
+    ↑ IMPLEMENTS
+Implementation (프레임워크/서비스)
+    ↑ COMPLIES_WITH
+StandardVersion (표준 버전)
+```
+
+### 11 Principles
+
+| Principle | Description |
+|-----------|-------------|
+| Perception | 환경으로부터 정보 수집/해석 |
+| Memory | 정보 저장, 검색, 갱신 |
+| Planning | 목표 분해 및 실행 순서 생성 |
+| Reasoning | 논리적 추론으로 결론 도출 |
+| Tool Use & Action | 외부 도구 선택 및 호출 |
+| Reflection | 자기 평가 및 개선 |
+| Grounding | 외부 지식 기반 사실적 출력 |
+| Learning | 피드백/경험 기반 능력 향상 |
+| Multi-Agent Collaboration | 에이전트 간 협력/조정 |
+| Guardrails | 안전성, 보안, 규정 준수 |
+| Tracing | 실행 흐름 관찰 및 분석 |
 
 ## 📁 프로젝트 구조
 
@@ -108,17 +136,146 @@ poetry run python scripts/load_sample_data.py --clear
 poetry run python scripts/test_queries.py
 ```
 
-## 📊 도메인 분류 체계
+### 3. Configuration
 
-### Agentic AI Taxonomy
+```bash
+# Copy environment template
+cp .env.example .env
 
-| 중분류 | 소분류 |
-|--------|--------|
-| **Architecture** | Multi-Agent Systems, Agent Orchestration, Memory & State, Tool Use |
-| **Reasoning** | Planning & Decomposition, Self-Reflection, Chain-of-Thought Variants |
-| **Grounding** | RAG & Retrieval, Knowledge Graphs, Web & API Integration |
-| **Evaluation** | Benchmarks, Safety & Alignment, Human-Agent Interaction |
-| **Industry** | Enterprise Applications, Developer Tools, Domain-Specific |
+# Edit .env with your settings
+# - Neo4j connection details
+# - LLM API keys (OpenAI or Anthropic)
+```
+
+### 4. Database Setup
+
+```bash
+# Initialize database with schema and seed data
+python src/db_setup.py
+
+# Or with options:
+python src/db_setup.py --clear    # Clear existing data first
+python src/db_setup.py --stats    # Show statistics only
+```
+
+### 5. Verify Setup
+
+```bash
+# Check database statistics
+python src/db_setup.py --stats
+```
+
+Expected output:
+```
+=== Database Statistics ===
+Total Nodes: ~50
+Total Relationships: ~80
+
+Nodes by Label:
+  Principle: 11
+  Standard: 3
+  StandardVersion: 3
+  Method: ~25
+  Implementation: ~15
+  Document: 3
+```
+
+## Project Structure
+
+```
+agentic-ai-kg/
+├── docs/
+│   └── schema.md           # 스키마 정의서
+├── neo4j/
+│   ├── schema.cypher       # 제약조건/인덱스
+│   └── seed_data.cypher    # 초기 데이터
+├── src/
+│   ├── db_setup.py         # DB 초기화
+│   ├── models/             # Pydantic 모델 (Phase 2)
+│   ├── api/                # FastAPI 엔드포인트 (Phase 2)
+│   └── agents/             # LangGraph 에이전트 (Phase 2)
+├── requirements.txt
+├── .env.example
+└── README.md
+```
+
+## Development Roadmap
+
+### Phase 1: 기반 구축 ✅
+- [x] 스키마 설계 완료
+- [x] Neo4j 세팅 스크립트
+- [x] Seed 데이터 (11 Principles, 25+ Methods, 15+ Implementations)
+- [ ] 수동 데이터 입력 검증
+
+### Phase 2: 핵심 플로우
+- [ ] LangGraph 기본 구조
+- [ ] 벡터 검색 연동
+- [ ] FastAPI + Streamlit
+
+### Phase 3: 확장 기능
+- [ ] Web Search Expander
+- [ ] 유저 승인 UI
+- [ ] 그래프 시각화
+
+### Phase 4: Critic Agent
+- [ ] 평가 원칙/방법 정의
+- [ ] 평가 로직 구현
+- [ ] 지침 버저닝 시스템
+
+### Phase 5: Prompt Optimizer
+- [ ] Failure Analyzer
+- [ ] Variant Generator
+- [ ] Test Runner + Critic 연동
+
+### Phase 6: 고도화
+- [ ] RAG 고도화
+- [ ] 자동 데이터 수집
+- [ ] 성능 최적화
+
+## Key Design Decisions
+
+### 1. Standard 버전 관리
+- `Standard` + `StandardVersion` 분리
+- MCP (날짜 기반), A2A (semver), OTel (experimental 상태) 추적
+
+### 2. Method 분류
+- `method_family`: 1차 분류 (통제된 vocabulary)
+- `method_type`: 형태 분류 (prompt_pattern, agent_control_loop 등)
+- `granularity`: atomic vs composite
+
+### 3. 관계 의미 분리
+- `ADDRESSES`: Method → Principle (role: primary/secondary)
+- `IMPLEMENTS`: Implementation → Method (support_level)
+- `COMPLIES_WITH`: Implementation → StandardVersion (role, level)
+
+### 4. 증거 기반
+- 모든 관계는 `Claim` 노드로 추적 가능
+- `DocumentChunk`에서 근거 연결
+
+## Common Cypher Queries
+
+### Principle → Method → Implementation 경로
+
+```cypher
+MATCH path = (p:Principle)<-[:ADDRESSES]-(m:Method)<-[:IMPLEMENTS]-(i:Implementation)
+RETURN p.name, m.name, collect(i.name) AS implementations
+ORDER BY p.name;
+```
+
+### 특정 Method를 구현하는 Implementation
+
+```cypher
+MATCH (i:Implementation)-[r:IMPLEMENTS]->(m:Method {id: 'm:react'})
+RETURN i.name, r.support_level, r.evidence;
+```
+
+### Standard 준수 현황
+
+```cypher
+MATCH (i:Implementation)-[r:COMPLIES_WITH]->(sv:StandardVersion)-[:HAS_VERSION]-(s:Standard)
+RETURN s.name, sv.version, i.name, r.role, r.level;
+```
+
 
 ## 🔧 개발 로드맵
 
@@ -128,16 +285,6 @@ poetry run python scripts/test_queries.py
 - [ ] **Phase 4**: Critic Agent (평가 체계, 지침 버저닝)
 - [ ] **Phase 5**: Prompt Optimizer (Human-in-the-loop 최적화)
 
-## 📚 이론적 배경
-
-이 프로젝트의 Prompt Optimizer는 다음 연구들을 기반으로 합니다:
-
-- **Self-Refine** (Madaan et al., NeurIPS 2023): 반복적 자기 개선
-- **Reflexion** (Shinn et al., NeurIPS 2023): 언어적 강화학습
-- **APO** (Pryzant et al., EMNLP 2023): 텍스트 그래디언트 기반 최적화
-- **PromptWizard** (Microsoft, 2024): 피드백 기반 공동 최적화
-- **DSPy/MIPROv2** (Stanford, ICLR 2024): 선언적 프롬프트 프로그래밍
-
-## 📄 라이선스
+## License
 
 MIT License

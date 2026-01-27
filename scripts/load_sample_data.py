@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
-"""Script to load sample data into Neo4j."""
+"""
+Agentic AI Knowledge Graph - Database Initialization Script
 
+Loads schema and seed data from Cypher files into Neo4j.
+"""
+
+import argparse
 import sys
 from pathlib import Path
 
@@ -8,91 +13,86 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.graph import Neo4jClient
-from data.sample_data import get_all_sample_data
-
-
-def load_sample_data(clear_first: bool = False) -> None:
-    """Load all sample data into Neo4j.
-    
-    Args:
-        clear_first: If True, clear the database before loading
-    """
-    client = Neo4jClient()
-    
-    try:
-        client.connect()
-        
-        if clear_first:
-            print("⚠️  Clearing database...")
-            client.clear_database()
-        
-        # Setup schema
-        print("📐 Setting up schema constraints...")
-        client.setup_constraints()
-        
-        # Get sample data
-        data = get_all_sample_data()
-        
-        # Load sources
-        print(f"\n📚 Loading {len(data['sources'])} sources...")
-        for source in data["sources"]:
-            client.create_source(source)
-            print(f"  ✓ {source.name}")
-        
-        # Load authors
-        print(f"\n👤 Loading {len(data['authors'])} authors...")
-        for author in data["authors"]:
-            client.create_author(author)
-            print(f"  ✓ {author.name}")
-        
-        # Load concepts
-        print(f"\n💡 Loading {len(data['concepts'])} concepts...")
-        for concept in data["concepts"]:
-            client.create_concept(concept)
-            print(f"  ✓ {concept.name} [{concept.category_sub.value}]")
-        
-        # Load documents
-        print(f"\n📄 Loading {len(data['documents'])} documents...")
-        for doc in data["documents"]:
-            client.create_document(doc)
-            print(f"  ✓ {doc.title[:50]}...")
-        
-        # Load relationships
-        print(f"\n🔗 Loading {len(data['relationships'])} relationships...")
-        for rel in data["relationships"]:
-            try:
-                client.create_relationship(rel)
-                print(f"  ✓ {rel.source_id} -[{rel.rel_type.value}]-> {rel.target_id}")
-            except Exception as e:
-                print(f"  ✗ Failed: {rel.source_id} -> {rel.target_id}: {e}")
-        
-        # Print stats
-        print("\n" + "=" * 50)
-        stats = client.get_stats()
-        print("📊 Database Statistics:")
-        print(f"  Total nodes: {stats['total_nodes']}")
-        print(f"  Total relationships: {stats['total_relationships']}")
-        print("  Nodes by label:")
-        for label, count in stats['nodes_by_label'].items():
-            print(f"    - {label}: {count}")
-        
-        print("\n✅ Sample data loaded successfully!")
-        
-    finally:
-        client.close()
 
 
 def main():
-    import argparse
-    parser = argparse.ArgumentParser(description="Load sample data into Neo4j")
+    parser = argparse.ArgumentParser(
+        description="Initialize Agentic AI Knowledge Graph database"
+    )
     parser.add_argument(
-        "--clear", 
-        action="store_true", 
+        "--clear",
+        action="store_true",
         help="Clear database before loading"
     )
+    parser.add_argument(
+        "--schema-only",
+        action="store_true",
+        help="Only setup schema (no seed data)"
+    )
+    parser.add_argument(
+        "--stats",
+        action="store_true",
+        help="Show database statistics only"
+    )
     args = parser.parse_args()
-    
-    load_sample_data(clear_first=args.clear)
+
+    print("=" * 60)
+    print("Agentic AI Knowledge Graph - Database Setup")
+    print("=" * 60)
+
+    with Neo4jClient() as client:
+        # Stats only mode
+        if args.stats:
+            print("\n[Statistics Mode]")
+            stats = client.get_stats()
+            print_stats(stats)
+            return
+
+        # Schema only mode
+        if args.schema_only:
+            print("\n[Schema Only Mode]")
+            if args.clear:
+                print("Clearing database...")
+                client.clear_database()
+            print("Setting up schema...")
+            count = client.setup_schema()
+            print(f"Executed {count} schema statements")
+            print("\nSchema setup complete!")
+            return
+
+        # Full initialization
+        print("\n[Full Initialization Mode]")
+        if args.clear:
+            print("Clearing database...")
+            client.clear_database()
+
+        print("Setting up schema (constraints & indexes)...")
+        schema_count = client.setup_schema()
+        print(f"  Executed {schema_count} schema statements")
+
+        print("\nLoading seed data...")
+        seed_count = client.load_seed_data()
+        print(f"  Executed {seed_count} seed data statements")
+
+        print("\n" + "-" * 60)
+        stats = client.get_stats()
+        print_stats(stats)
+
+        print("\nDatabase initialized successfully!")
+
+
+def print_stats(stats):
+    """Print database statistics in a formatted way."""
+    print(f"\nTotal Nodes: {stats.total_nodes}")
+    print(f"Total Relationships: {stats.total_relationships}")
+
+    print("\nNodes by Label:")
+    for label, count in sorted(stats.nodes_by_label.items()):
+        print(f"  {label}: {count}")
+
+    print("\nRelationships by Type:")
+    for rel_type, count in sorted(stats.relationships_by_type.items()):
+        print(f"  {rel_type}: {count}")
 
 
 if __name__ == "__main__":
