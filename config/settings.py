@@ -43,3 +43,8 @@ class Settings:
 def get_settings() -> Settings:
     """Get cached settings instance."""
     return Settings()
+
+
+if __name__ == "__main__":
+    settings = get_settings()
+    print(settings)
