@@ -159,11 +159,21 @@ agentic-ai-kg/
 │   └── validation_queries.cypher ← 검증 쿼리
 ├── src/
 │   ├── graph/             ← Neo4j 클라이언트 & 스키마
-│   ├── agents/            ← LangGraph 에이전트들
+│   ├── agents/            ← LangGraph 에이전트 파이프라인 (✅ 기본 구현)
+│   │   ├── __init__.py    ← 모듈 exports
+│   │   ├── state.py       ← AgentState TypedDict (11 fields)
+│   │   ├── graph.py       ← LangGraph 파이프라인 (linear 4-node)
+│   │   ├── README.md      ← 에이전트 아키텍처 문서
+│   │   └── nodes/
+│   │       ├── intent_classifier.py  ← 쿼리 의도 분류
+│   │       ├── search_planner.py     ← Cypher 템플릿 선택 (7개)
+│   │       ├── graph_retriever.py    ← Neo4j 쿼리 실행
+│   │       └── synthesizer.py        ← 자연어 답변 생성
 │   └── api/               ← FastAPI 엔드포인트
 ├── scripts/
 │   ├── load_sample_data.py
-│   └── test_queries.py
+│   ├── test_queries.py
+│   └── test_agent.py     ← 에이전트 CLI 테스트 (11 test queries)
 ├── requirements.txt
 └── .env.example
 ```
@@ -172,14 +182,16 @@ agentic-ai-kg/
 
 ## 개발 로드맵
 
-### Phase 1: 기반 구축 ✅ (거의 완료)
+### Phase 1: 기반 구축 ✅ 완료
 - [x] 스키마 설계
 - [x] Neo4j 세팅 스크립트
 - [x] Seed 데이터
-- [ ] 수동 데이터 검증
+- [x] 수동 데이터 검증
 
-### Phase 2: 핵심 플로우
-- [ ] LangGraph 기본 구조
+### Phase 2: 핵심 플로우 🔧 진행 중
+- [x] LangGraph 기본 구조 (4-node linear pipeline)
+- [x] 에이전트 테스트 스크립트 (`scripts/test_agent.py`)
+- [ ] LLM 의존성 개선 (provider/model 추상화, SSL 조건부 처리)
 - [ ] 벡터 검색 연동
 - [ ] FastAPI + Streamlit
 
