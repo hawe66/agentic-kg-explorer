@@ -164,6 +164,12 @@ agentic-ai-kg/
 │   │   ├── state.py       ← AgentState TypedDict (11 fields)
 │   │   ├── graph.py       ← LangGraph 파이프라인 (linear 4-node)
 │   │   ├── README.md      ← 에이전트 아키텍처 문서
+│   │   ├── providers/     ← LLM provider 추상화 (✅ 구현)
+│   │   │   ├── base.py    ← LLMProvider ABC
+│   │   │   ├── router.py  ← provider 라우팅 + fallback + SSL
+│   │   │   ├── openai.py  ← OpenAI (gpt-4o-mini)
+│   │   │   ├── anthropic.py ← Anthropic (claude-3-5-sonnet)
+│   │   │   └── gemini.py  ← Gemini (gemini-2.5-flash)
 │   │   └── nodes/
 │   │       ├── intent_classifier.py  ← 쿼리 의도 분류
 │   │       ├── search_planner.py     ← Cypher 템플릿 선택 (7개)
@@ -191,7 +197,9 @@ agentic-ai-kg/
 ### Phase 2: 핵심 플로우 🔧 진행 중
 - [x] LangGraph 기본 구조 (4-node linear pipeline)
 - [x] 에이전트 테스트 스크립트 (`scripts/test_agent.py`)
-- [ ] LLM 의존성 개선 (provider/model 추상화, SSL 조건부 처리)
+- [x] LLM provider/model 추상화 (OpenAI, Anthropic, Gemini 지원)
+- [x] SSL 조건부 처리 (macOS/Windows/WSL 호환)
+- [ ] Provider config 외부화 (YAML 등으로 provider 선언만으로 전환 가능하게)
 - [ ] 벡터 검색 연동
 - [ ] FastAPI + Streamlit
 
@@ -475,19 +483,29 @@ RETURN m.id, m.name;
 
 # Project Context
 
-## 환경 설정
-- Windows PowerShell 프로필: `C:\Users\조영하\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1`
+## 환경 설정 (멀티 플랫폼)
+
+### macOS (현재 주 개발 환경)
+- Python: pyenv 관리, 3.11.4
+- Poetry 가상환경 경로: `~/Library/Caches/pypoetry/virtualenvs/agentic-kg-explorer-I8TSMQ2W-py3.11`
+- 실행: `poetry run python ...`
+- SSL: 별도 인증서 설정 불필요 (시스템 인증서 사용)
+
+### Windows
+- PowerShell 프로필: `C:\Users\조영하\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1`
 - 가상환경 활성화: `kg` 명령어 사용
 - Poetry 가상환경 경로: `C:\Users\조영하\AppData\Local\pypoetry\Cache\virtualenvs\agentic-kg-explorer-Vxs5hbQW-py3.11`
-- 주의할 점:
-    - 현재 환경이 Windows일 경우 poetry run 등의 명령어를 사용하지 않고, 위의 캐시 폴더에 존재하는 poetry 가상환경 경로를 사용하고, python 명령어를 바로 사용하면 됨.
-    - WSL일 경우 프로젝트 폴더에 전용 poetry 환경이 설정된 .venv 폴더가 있으므로 poetry 명령어를 사용해도 됨.
-    - 따라서 반드시 현재 환경이 어디인지 파악하고 명령어를 돌려야 함.
+- 실행: 위 캐시 폴더의 python 직접 사용 (`poetry run` 불필요)
+
+### WSL
+- 프로젝트 폴더 내 `.venv/` 사용
+- 실행: `poetry run python ...` 또는 `.venv/bin/activate`
+
+### 공통 주의사항
+- 반드시 현재 환경(macOS/Windows/WSL)을 먼저 파악하고 명령어를 실행할 것
+- Poetry 환경 밖 global에서는 Python 버전이 다를 수 있음
 
 ## SSL 인증서 설정
-- 인증서 위치: `C:\certs\`
-- NODE_EXTRA_CA_CERTS, REQUESTS_CA_BUNDLE, SSL_CERT_FILE 환경변수 설정됨
-
-## 주의사항
-- Poetry 환경 밖 global에서는 Python 3.12 사용 (py launcher 기본값)
-- WSL에서도 별도 인증서 설정 필요 (`~/certs/`)
+- Windows: `C:\certs\` — `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE`, `SSL_CERT_FILE` 환경변수 설정
+- WSL: `~/certs/` — 별도 설정 필요
+- macOS: 불필요 (시스템 기본 인증서 사용, `SSL_CERT_FILE` 미설정 시 provider가 자동으로 기본값 사용)

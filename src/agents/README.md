@@ -100,6 +100,13 @@ src/agents/
 ├── __init__.py          # 모듈 export
 ├── state.py             # AgentState 정의
 ├── graph.py             # LangGraph 파이프라인 (create_agent_graph, run_agent)
+├── providers/           # LLM provider 추상화
+│   ├── __init__.py
+│   ├── base.py          # LLMProvider ABC (generate interface)
+│   ├── router.py        # provider 라우팅 + fallback + SSL
+│   ├── openai.py        # OpenAI (기본: gpt-4o-mini)
+│   ├── anthropic.py     # Anthropic (기본: claude-3-5-sonnet-20241022)
+│   └── gemini.py        # Gemini (기본: gemini-2.5-flash)
 └── nodes/
     ├── __init__.py
     ├── intent_classifier.py   # LLM 기반 의도 분류
@@ -131,8 +138,15 @@ NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=your-password
 NEO4J_DATABASE=neo4j
 
-# Anthropic (Intent classification & Synthesis)
-ANTHROPIC_API_KEY=sk-ant-...
+# LLM Provider 설정
+LLM_PROVIDER=gemini              # openai | anthropic | gemini
+# LLM_MODEL=gemini-2.0-flash     # 생략 시 provider 기본값 사용
+# LLM_FALLBACK_PROVIDER=openai   # 선택사항
+
+# API Keys (사용할 provider 것만 설정)
+# OPENAI_API_KEY=sk-...
+# ANTHROPIC_API_KEY=sk-ant-...
+GEMINI_API_KEY=your-key
 ```
 
 ## 예시 출력
@@ -161,7 +175,9 @@ Confidence: 0.9
 Sources: 3 nodes (Principle:Planning, Method:ReAct, Method:Plan-and-Execute)
 ```
 
-## Fallback 동작
+## Provider Fallback 동작
+
+Provider 해결 순서: Primary (`LLM_PROVIDER`) → Fallback (`LLM_FALLBACK_PROVIDER`) → Heuristic
 
 LLM API 호출 실패 시:
 - Intent Classifier: 휴리스틱 기반 분류 (키워드 매칭)

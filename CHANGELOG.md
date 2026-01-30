@@ -101,6 +101,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Graph Retriever node with Neo4j result serialization (`src/agents/nodes/graph_retriever.py`)
 - Synthesizer node for natural language answer generation (`src/agents/nodes/synthesizer.py`)
 
+**Multi-Provider LLM Abstraction** (`src/agents/providers/`)
+- Abstract `LLMProvider` base class (`base.py`)
+- Provider router with primary/fallback chain (`router.py`)
+- OpenAI provider — default model: `gpt-4o-mini` (`openai.py`)
+- Anthropic provider — default model: `claude-3-5-sonnet-20241022` (`anthropic.py`)
+- Gemini provider — default model: `gemini-2.5-flash` (`gemini.py`)
+- SSL certificate handling per provider (conditional, macOS/Windows/WSL compatible)
+- Configuration via `.env`: `LLM_PROVIDER`, `LLM_MODEL`, `LLM_FALLBACK_PROVIDER`
+
 **Agent State Management** (`src/agents/state.py`)
 - `AgentState` TypedDict with 11 fields covering intent, search strategy, results, and error handling
 
@@ -108,8 +117,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `create_agent_graph()`: Builds compiled LangGraph StateGraph with linear flow
 - `run_agent(query)`: Convenience function for single-query execution
 
+**Configuration Management** (`config/settings.py`)
+- Pydantic Settings with dotenv integration
+- Provider selection, model override, token limits, fallback provider settings
+- API keys: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`
+
 **Testing & Documentation**
 - CLI test script with 11 test queries across all intent types (`scripts/test_agent.py`)
+- Provider/model override via CLI: `--llm-provider`, `--llm-model`
 - Comprehensive agent README with architecture, usage, and debugging guide (`src/agents/README.md`)
 
 #### Query Intent Types Supported
@@ -122,21 +137,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Design Decisions
 - **Linear pipeline**: Sequential flow without conditional routing (branching planned for later)
+- **Provider abstraction**: Simple `generate(prompt, max_tokens) -> str` interface; no LangChain LLM wrappers used for provider calls
+- **Fallback chain**: Primary provider → fallback provider → heuristic (keyword-based)
 - **Confidence scoring**: Based on result count adjusted by intent type
 - **Result serialization**: Neo4j Node/Relationship objects converted to JSON-compatible dicts
+
+#### Fixed (from v0.2.0-pre)
+- LLM client no longer hardcoded to Anthropic; uses configurable provider router
+- SSL cert loading is now conditional (only when `SSL_CERT_FILE` env var is set and file exists)
 
 #### Known Limitations
 - Expansion intent returns placeholder message (web search requires Phase 3)
 - No conversation history between queries
 - No conditional routing (linear only)
-- `synthesizer.py:94` — `ssl_cert_file` is loaded unconditionally; needs conditional logic or try-except since it's not mandatory in all environments
-- `intent_classifier.py`, `synthesizer.py` — LLM client is hardcoded to Anthropic (`intent_classifier.py:71,73`, `synthesizer.py:98,100`) and model is pinned to `claude-3-5-sonnet` (`intent_classifier.py:76`, `synthesizer.py:103`); needs abstraction with conditional logic to support configurable providers and models
-- `synthesizer.py:228-244` — Confidence thresholds (`0.9/0.8/0.7/0.5`) and intent multipliers (`*0.9/*0.8`) are hardcoded magic numbers; should be externalized to config
-- `intent_classifier.py:133-142` — Fallback keyword lists for intent classification are hardcoded; not extensible without code changes
-- `intent_classifier.py:151-162`, `search_planner.py:152-153,185-186` — Known entity lists are duplicated across files and disconnected from actual KG data; should be derived from graph schema or consolidated into a shared registry
-- `search_planner.py:18-76` — Cypher LIMIT values are inconsistent (`10/20/30`) with no configuration
+- Confidence thresholds (`0.9/0.8/0.7/0.5`) and intent multipliers hardcoded
+- Fallback keyword lists for intent classification are hardcoded
+- Known entity lists duplicated across files; should be derived from graph schema
+- Cypher LIMIT values inconsistent (`10/20/30`) with no configuration
+- `gemini-1.5-flash` model deprecated in Google AI API; use `gemini-2.0-flash` or later
 
 #### Remaining Phase 2 Items
+- [ ] **Provider config externalization**: Replace per-provider install/uninstall cycle with declarative config (e.g. YAML) where only `provider: gemini` is needed — router auto-resolves SDK, defaults, SSL. Current approach requires touching `router.py`, `settings.py`, and `pyproject.toml` for every provider change; a config-driven approach would decouple provider selection from code. Scope: `config/`, `src/agents/providers/`, `pyproject.toml` optional-deps grouping.
 - [ ] Vector search integration
 - [ ] FastAPI REST endpoints
 - [ ] Streamlit UI

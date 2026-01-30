@@ -100,6 +100,12 @@ agentic-kg-explorer/
 │   │   ├── state.py       # AgentState TypedDict (11 fields)
 │   │   ├── graph.py       # LangGraph 파이프라인 (linear 4-node flow)
 │   │   ├── README.md      # 에이전트 아키텍처 문서
+│   │   ├── providers/     # LLM provider 추상화 (✅ 구현됨)
+│   │   │   ├── base.py    # LLMProvider ABC
+│   │   │   ├── router.py  # provider 라우팅 + fallback + SSL
+│   │   │   ├── openai.py  # OpenAI provider
+│   │   │   ├── anthropic.py # Anthropic provider
+│   │   │   └── gemini.py  # Gemini provider
 │   │   └── nodes/         # 개별 노드 구현
 │   │       ├── intent_classifier.py   # 쿼리 의도 분류
 │   │       ├── search_planner.py      # Cypher 템플릿 선택 (7개)
@@ -160,6 +166,16 @@ NEO4J_URI=neo4j://xxxxx.databases.neo4j.io
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=your-password
 NEO4J_DATABASE=neo4j
+
+# LLM Provider (openai | anthropic | gemini)
+LLM_PROVIDER=gemini
+# LLM_MODEL=gemini-2.0-flash  # 생략 시 provider 기본값 사용
+# LLM_FALLBACK_PROVIDER=openai
+
+# API Keys (사용할 provider에 해당하는 키만 설정)
+# OPENAI_API_KEY=sk-...
+# ANTHROPIC_API_KEY=sk-ant-...
+GEMINI_API_KEY=your-gemini-api-key
 ```
 
 **중요**: Windows 환경에서 Neo4j Aura 사용 시:
@@ -328,7 +344,9 @@ Phase 1에서 구축된 지식 그래프의 핵심 통계:
 
 ### Phase 2: 핵심 플로우 🔧 **진행 중**
 - [x] LangGraph 기본 구조 (4-node linear pipeline: Intent → Search → Retrieve → Synthesize)
+- [x] Multi-provider LLM 추상화 (OpenAI, Anthropic, Gemini)
 - [x] 에이전트 테스트 스크립트 (`scripts/test_agent.py`)
+- [ ] Provider config 외부화 (YAML 기반 선언적 전환)
 - [ ] 벡터 검색 연동
 - [ ] FastAPI + Streamlit UI
 
