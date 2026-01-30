@@ -537,6 +537,102 @@ CREATE (m:Method {
 });
 
 // ------------------------------------------------------------
+// 12. Methods - Guardrails (NEW)
+// ------------------------------------------------------------
+
+CREATE (m:Method {
+  id: 'm:input-validation',
+  name: 'Input Validation',
+  aliases: ['Prompt Injection Defense'],
+  method_family: 'safety_control',
+  method_type: 'safety_classifier_or_policy',
+  granularity: 'atomic',
+  method_kind: ['input-filtering', 'injection-prevention'],
+  description: '악의적 입력 및 프롬프트 인젝션을 탐지하고 차단하는 기법',
+  year_introduced: 2023,
+  maturity: 'production',
+  tags: ['safety', 'security', 'validation']
+});
+
+CREATE (m:Method {
+  id: 'm:output-validation',
+  name: 'Output Validation',
+  aliases: ['Structured Output Enforcement'],
+  method_family: 'safety_control',
+  method_type: 'safety_classifier_or_policy',
+  granularity: 'atomic',
+  method_kind: ['output-validation', 'schema-enforcement'],
+  description: 'LLM 출력이 정의된 스키마와 제약사항을 준수하도록 검증하는 기법',
+  year_introduced: 2023,
+  maturity: 'production',
+  tags: ['safety', 'validation', 'structured-output']
+});
+
+CREATE (m:Method {
+  id: 'm:content-moderation',
+  name: 'Content Moderation',
+  aliases: ['Safety Filtering'],
+  method_family: 'safety_control',
+  method_type: 'safety_classifier_or_policy',
+  granularity: 'atomic',
+  method_kind: ['toxicity-detection', 'policy-enforcement'],
+  description: '유해 콘텐츠, 편향, 개인정보 등을 탐지하고 필터링하는 기법',
+  year_introduced: 2023,
+  maturity: 'production',
+  tags: ['safety', 'moderation', 'compliance']
+});
+
+// ------------------------------------------------------------
+// 13. Methods - Tracing/Observability (NEW)
+// ------------------------------------------------------------
+
+CREATE (m:Method {
+  id: 'm:span-tracing',
+  name: 'Span-based Tracing',
+  aliases: ['Distributed Tracing'],
+  method_family: 'observability_tracing',
+  method_type: 'instrumentation_pattern',
+  granularity: 'atomic',
+  method_kind: ['span-context', 'hierarchical-tracing'],
+  description: 'OpenTelemetry 스타일의 Span 기반 실행 추적 기법',
+  year_introduced: 2024,
+  maturity: 'production',
+  tags: ['observability', 'tracing', 'opentelemetry']
+});
+
+CREATE (m:Method {
+  id: 'm:llm-observability',
+  name: 'LLM Observability',
+  aliases: ['GenAI Monitoring'],
+  method_family: 'observability_tracing',
+  method_type: 'instrumentation_pattern',
+  granularity: 'atomic',
+  method_kind: ['token-tracking', 'cost-monitoring', 'latency-profiling'],
+  description: 'LLM 호출의 토큰, 비용, 지연시간 등을 추적하는 관찰 기법',
+  year_introduced: 2024,
+  maturity: 'production',
+  tags: ['observability', 'monitoring', 'llm']
+});
+
+// ------------------------------------------------------------
+// 14. Methods - Perception (NEW)
+// ------------------------------------------------------------
+
+CREATE (m:Method {
+  id: 'm:multimodal-fusion',
+  name: 'Multimodal Fusion',
+  aliases: ['Cross-modal Integration'],
+  method_family: 'prompting_decoding',
+  method_type: 'prompt_pattern',
+  granularity: 'atomic',
+  method_kind: ['vision-language', 'multimodal-reasoning'],
+  description: '텍스트, 이미지, 오디오 등 다중 모달리티를 통합하여 처리하는 기법',
+  year_introduced: 2024,
+  maturity: 'production',
+  tags: ['perception', 'multimodal', 'vision']
+});
+
+// ------------------------------------------------------------
 // 12. Method USES Relationships (Composite)
 // ------------------------------------------------------------
 
@@ -667,6 +763,27 @@ MATCH (m:Method {id: 'm:dpo'}), (p:Principle {id: 'p:learning'})
 CREATE (m)-[:ADDRESSES {role: 'primary', weight: 1.0}]->(p);
 
 MATCH (m:Method {id: 'm:icl'}), (p:Principle {id: 'p:learning'})
+CREATE (m)-[:ADDRESSES {role: 'primary', weight: 1.0}]->(p);
+
+// Guardrails methods (NEW)
+MATCH (m:Method {id: 'm:input-validation'}), (p:Principle {id: 'p:guardrails'})
+CREATE (m)-[:ADDRESSES {role: 'primary', weight: 1.0}]->(p);
+
+MATCH (m:Method {id: 'm:output-validation'}), (p:Principle {id: 'p:guardrails'})
+CREATE (m)-[:ADDRESSES {role: 'primary', weight: 1.0}]->(p);
+
+MATCH (m:Method {id: 'm:content-moderation'}), (p:Principle {id: 'p:guardrails'})
+CREATE (m)-[:ADDRESSES {role: 'primary', weight: 1.0}]->(p);
+
+// Tracing methods (NEW)
+MATCH (m:Method {id: 'm:span-tracing'}), (p:Principle {id: 'p:tracing'})
+CREATE (m)-[:ADDRESSES {role: 'primary', weight: 1.0}]->(p);
+
+MATCH (m:Method {id: 'm:llm-observability'}), (p:Principle {id: 'p:tracing'})
+CREATE (m)-[:ADDRESSES {role: 'primary', weight: 1.0}]->(p);
+
+// Perception methods (NEW)
+MATCH (m:Method {id: 'm:multimodal-fusion'}), (p:Principle {id: 'p:perception'})
 CREATE (m)-[:ADDRESSES {role: 'primary', weight: 1.0}]->(p);
 
 // ------------------------------------------------------------
@@ -951,6 +1068,46 @@ CREATE (i)-[:IMPLEMENTS {support_level: 'core', evidence: 'doc'}]->(m);
 
 MATCH (i:Implementation {id: 'impl:ms-graphrag'}), (m:Method {id: 'm:graphrag'})
 CREATE (i)-[:IMPLEMENTS {support_level: 'core', evidence: 'both'}]->(m);
+
+// NEW: Add IMPLEMENTS relationships for orphan implementations
+MATCH (i:Implementation {id: 'impl:openai-agents-sdk'}), (m:Method {id: 'm:react'})
+CREATE (i)-[:IMPLEMENTS {support_level: 'first_class', evidence: 'doc'}]->(m);
+
+MATCH (i:Implementation {id: 'impl:semantic-kernel'}), (m:Method {id: 'm:workflow-graph'})
+CREATE (i)-[:IMPLEMENTS {support_level: 'first_class', evidence: 'doc'}]->(m);
+
+MATCH (i:Implementation {id: 'impl:nemo-guardrails'}), (m:Method {id: 'm:input-validation'})
+CREATE (i)-[:IMPLEMENTS {support_level: 'core', evidence: 'doc'}]->(m);
+
+MATCH (i:Implementation {id: 'impl:nemo-guardrails'}), (m:Method {id: 'm:content-moderation'})
+CREATE (i)-[:IMPLEMENTS {support_level: 'first_class', evidence: 'doc'}]->(m);
+
+MATCH (i:Implementation {id: 'impl:guardrails-ai'}), (m:Method {id: 'm:output-validation'})
+CREATE (i)-[:IMPLEMENTS {support_level: 'core', evidence: 'doc'}]->(m);
+
+MATCH (i:Implementation {id: 'impl:guardrails-ai'}), (m:Method {id: 'm:input-validation'})
+CREATE (i)-[:IMPLEMENTS {support_level: 'first_class', evidence: 'doc'}]->(m);
+
+MATCH (i:Implementation {id: 'impl:llm-guard'}), (m:Method {id: 'm:content-moderation'})
+CREATE (i)-[:IMPLEMENTS {support_level: 'core', evidence: 'doc'}]->(m);
+
+MATCH (i:Implementation {id: 'impl:llm-guard'}), (m:Method {id: 'm:input-validation'})
+CREATE (i)-[:IMPLEMENTS {support_level: 'first_class', evidence: 'doc'}]->(m);
+
+MATCH (i:Implementation {id: 'impl:llamaguard'}), (m:Method {id: 'm:content-moderation'})
+CREATE (i)-[:IMPLEMENTS {support_level: 'core', evidence: 'both'}]->(m);
+
+MATCH (i:Implementation {id: 'impl:langsmith'}), (m:Method {id: 'm:span-tracing'})
+CREATE (i)-[:IMPLEMENTS {support_level: 'core', evidence: 'doc'}]->(m);
+
+MATCH (i:Implementation {id: 'impl:langsmith'}), (m:Method {id: 'm:llm-observability'})
+CREATE (i)-[:IMPLEMENTS {support_level: 'core', evidence: 'doc'}]->(m);
+
+MATCH (i:Implementation {id: 'impl:langfuse'}), (m:Method {id: 'm:span-tracing'})
+CREATE (i)-[:IMPLEMENTS {support_level: 'core', evidence: 'doc'}]->(m);
+
+MATCH (i:Implementation {id: 'impl:langfuse'}), (m:Method {id: 'm:llm-observability'})
+CREATE (i)-[:IMPLEMENTS {support_level: 'core', evidence: 'doc'}]->(m);
 
 // ------------------------------------------------------------
 // 16. Implementation COMPLIES_WITH Standard Relationships

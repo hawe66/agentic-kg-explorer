@@ -131,6 +131,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - No conditional routing (linear only)
 - `synthesizer.py:94` — `ssl_cert_file` is loaded unconditionally; needs conditional logic or try-except since it's not mandatory in all environments
 - `intent_classifier.py`, `synthesizer.py` — LLM client is hardcoded to Anthropic (`intent_classifier.py:71,73`, `synthesizer.py:98,100`) and model is pinned to `claude-3-5-sonnet` (`intent_classifier.py:76`, `synthesizer.py:103`); needs abstraction with conditional logic to support configurable providers and models
+- `synthesizer.py:228-244` — Confidence thresholds (`0.9/0.8/0.7/0.5`) and intent multipliers (`*0.9/*0.8`) are hardcoded magic numbers; should be externalized to config
+- `intent_classifier.py:133-142` — Fallback keyword lists for intent classification are hardcoded; not extensible without code changes
+- `intent_classifier.py:151-162`, `search_planner.py:152-153,185-186` — Known entity lists are duplicated across files and disconnected from actual KG data; should be derived from graph schema or consolidated into a shared registry
+- `search_planner.py:18-76` — Cypher LIMIT values are inconsistent (`10/20/30`) with no configuration
 
 #### Remaining Phase 2 Items
 - [ ] Vector search integration

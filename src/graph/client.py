@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Generator, Optional
 
-from neo4j import GraphDatabase, Driver, Session
+from neo4j import GraphDatabase, Driver, Session, TrustAll
 from neo4j.exceptions import ServiceUnavailable, AuthError
 
 from config import get_settings
@@ -45,7 +45,9 @@ class Neo4jClient:
         try:
             self._driver = GraphDatabase.driver(
                 self._uri,
-                auth=(self._username, self._password)
+                auth=(self._username, self._password),
+                encrypted=True,
+                trusted_certificates=TrustAll()  # SSL 검증 비활성화
             )
             self._driver.verify_connectivity()
             logger.info(f"Connected to Neo4j at {self._uri}")
