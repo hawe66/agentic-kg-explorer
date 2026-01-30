@@ -158,9 +158,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Remaining Phase 2 Items
 - [ ] **Provider config externalization**: Replace per-provider install/uninstall cycle with declarative config (e.g. YAML) where only `provider: gemini` is needed — router auto-resolves SDK, defaults, SSL. Current approach requires touching `router.py`, `settings.py`, and `pyproject.toml` for every provider change; a config-driven approach would decouple provider selection from code. Scope: `config/`, `src/agents/providers/`, `pyproject.toml` optional-deps grouping.
-- [ ] Vector search integration
+- [x] Vector search integration *(see v0.3.0)*
 - [ ] FastAPI REST endpoints
 - [ ] Streamlit UI
+
+---
+
+## [0.3.0] - 2026-01-31
+
+### Vector Search Integration (ChromaDB)
+
+#### Added
+
+**Retrieval Module** (`src/retrieval/`)
+- `EmbeddingClient` wrapping OpenAI `text-embedding-3-small` with SSL-aware httpx client (`embedder.py`)
+- `VectorStore` wrapping ChromaDB `PersistentClient` with cosine HNSW index (`vector_store.py`)
+- `VectorSearchResult` dataclass: `node_id`, `node_label`, `text`, `field`, `score`
+- Module exports in `__init__.py`: `EmbeddingClient`, `VectorStore`, `VectorSearchResult`, factory functions
+
+**Embedding Generation Script** (`scripts/generate_embeddings.py`)
+- Fetches Method, Principle, Document, Implementation nodes from Neo4j
+- Embeds `name`, `description`, `title`, `abstract` fields via OpenAI batched API
+- Upserts into ChromaDB with metadata `{node_id, node_label, field}`
+- ID format: `"{node_id}:{field}"` (e.g., `"m:react:description"`)
+
+**Three-Mode Retrieval in Agent Pipeline**
+- `graph_only`: existing Cypher behavior (unchanged)
+- `vector_first`: embed query → ChromaDB similarity → enrich from Neo4j
+- `hybrid`: Cypher + ChromaDB → merge results, confidence boost on overlap
+
+#### Changed
+
+**`src/agents/state.py`**
+- Added `vector_results: Optional[list[dict]]` field to `AgentState`
+
+**`src/agents/graph.py`**
+- Initialized `vector_results: None` in `run_agent()` initial state
+
+**`src/agents/nodes/search_planner.py`**
+- Added `_maybe_add_vector_search()` strategy selector:
+  - `expansion` intent → `vector_first`
+  - No Cypher template → `vector_first`
+  - `lookup`/`path` with recognized entities → `hybrid`
+  - Otherwise → `graph_only` (unchanged)
+- Sets `strategy["vector_query"]` for downstream vector search
+
+**`src/agents/nodes/graph_retriever.py`**
+- Added `_run_vector_search()`: embed query via OpenAI, query ChromaDB, return serialized results
+- Added `_enrich_from_neo4j()`: fetch full node data + connections for vector-matched node IDs
+- Main `retrieve_from_graph()` now handles all three retrieval types
+
+**`src/agents/nodes/synthesizer.py`**
+- Added `_format_vector_results()`: formats semantic search results for LLM prompt
+- Prompt template now includes `{vector_section}` placeholder
+- `_calculate_confidence()` updated: confidence boost (+0.05) when graph and vector results overlap; base 0.55 for vector-only results
+
+**`pyproject.toml`**
+- Added `chromadb = ">=0.5.0,<1.0.0"`
+
+**`.gitignore`**
+- Added `data/chroma/` (binary index files)
+
+#### Architecture
+
+```
+User Query
+    ↓
+[Intent Classifier]  (unchanged)
+    ↓
+[Search Planner]     → decides: graph_only | vector_first | hybrid
+    ↓
+[Graph Retriever]    → executes Cypher AND/OR ChromaDB query
+    ↓
+[Synthesizer]        → includes vector results in prompt
+```
+
+#### Usage
+
+```bash
+# 1. Install dependencies
+poetry install
+
+# 2. Generate embeddings (requires OPENAI_API_KEY)
+poetry run python scripts/generate_embeddings.py
+
+# 3. Test with queries
+poetry run python scripts/test_agent.py --query "reasoning and acting loop"  # vector_first
+poetry run python scripts/test_agent.py --query "What is ReAct?"             # hybrid
+```
+
+#### Graceful Fallback
+- If `data/chroma/` is missing or empty → `is_available = False` → all queries fall back to `graph_only`
+- If `OPENAI_API_KEY` is not set → `get_embedding_client()` returns `None` → vector search skipped
+
+#### Known Limitations
+- Embedding model hardcoded to OpenAI `text-embedding-3-small`; should follow YAML-driven provider pattern in future
+- ChromaDB telemetry warnings (`capture() takes 1 positional argument`) are harmless
+- No incremental embedding update — `generate_embeddings.py` re-embeds all nodes on each run
 
 ---
 

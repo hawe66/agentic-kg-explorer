@@ -56,6 +56,13 @@ class AgentState(TypedDict):
     confidence: Optional[float]
     """Confidence score (0.0-1.0) for the answer"""
 
+    # ===== Vector Search =====
+    vector_results: Optional[list[dict]]
+    """
+    Results from vector similarity search:
+    [{"node_id": "m:react", "node_label": "Method", "text": "...", "field": "description", "score": 0.87}, ...]
+    """
+
     # ===== Error Handling =====
     error: Optional[str]
     """Error message if any step fails"""

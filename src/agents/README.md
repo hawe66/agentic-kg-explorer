@@ -9,11 +9,11 @@ User Query
     ↓
 [Intent Classifier] - 질문 의도 분류 (lookup/path/comparison/expansion)
     ↓
-[Search Planner] - Cypher 쿼리 전략 수립
+[Search Planner] - 전략 수립: graph_only | vector_first | hybrid
     ↓
-[Graph Retriever] - Neo4j 쿼리 실행
+[Graph Retriever] - Neo4j Cypher 실행 AND/OR ChromaDB 벡터 검색
     ↓
-[Synthesizer] - 자연어 답변 생성
+[Synthesizer] - 자연어 답변 생성 (graph + vector results)
     ↓
 Answer + Sources + Confidence
 ```
@@ -30,11 +30,14 @@ class AgentState(TypedDict):
     entities: list[str]
 
     # Search Planning
-    search_strategy: dict  # Cypher template + parameters
+    search_strategy: dict  # Cypher template + parameters + retrieval_type
 
     # Graph Retrieval
     kg_results: list[dict]
     cypher_executed: list[str]
+
+    # Vector Search
+    vector_results: Optional[list[dict]]  # ChromaDB similarity results
 
     # Synthesis
     answer: str
@@ -126,6 +129,25 @@ Search Planner가 intent와 entity type에 따라 적절한 템플릿을 선택�
 - `path_method_to_implementations`: Method → Implementations 경로
 - `path_implementation_to_principles`: Implementation → Principles 경로
 - `comparison`: 두 엔티티 비교
+
+## 벡터 검색 (Vector Search)
+
+Search Planner가 intent와 ChromaDB 가용성에 따라 retrieval 전략을 결정합니다:
+
+| Strategy | 조건 | 동작 |
+|----------|------|------|
+| `graph_only` | 기본값, ChromaDB 비활성 | Cypher만 실행 |
+| `vector_first` | expansion intent 또는 Cypher 템플릿 없음 | ChromaDB 검색 → Neo4j 보강 |
+| `hybrid` | lookup/path + ChromaDB 활성 | Cypher + ChromaDB 병렬 → 결과 병합 |
+
+### 벡터 DB 초기화
+
+```bash
+# OpenAI embedding으로 KG 노드 임베딩 생성 → ChromaDB 저장
+poetry run python scripts/generate_embeddings.py
+```
+
+ChromaDB는 `data/chroma/`에 영구 저장됩니다. 삭제하면 `graph_only`로 자동 폴백합니다.
 
 ## 환경 변수
 

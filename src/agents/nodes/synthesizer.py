@@ -19,7 +19,7 @@ Query Intent: {intent}
 
 Knowledge Graph Results:
 {kg_results}
-
+{vector_section}
 Based on the knowledge graph results above, provide a clear, concise answer to the user's question.
 
 Guidelines:
@@ -45,16 +45,19 @@ def synthesize_answer(state: AgentState) -> AgentState:
     query = state.get("user_query")
     intent = state.get("intent")
     kg_results = state.get("kg_results", [])
+    vector_results = state.get("vector_results") or []
+
+    has_any_results = bool(kg_results) or bool(vector_results)
 
     # Handle error cases only if no results available
-    if state.get("error") and not kg_results:
+    if state.get("error") and not has_any_results:
         state["answer"] = f"I encountered an error: {state['error']}"
         state["sources"] = []
         state["confidence"] = 0.0
         return state
 
-    # Handle expansion intent (web search not yet implemented)
-    if intent == "expansion":
+    # Handle expansion intent — now possible with vector search
+    if intent == "expansion" and not has_any_results:
         state["answer"] = (
             "This question requires information beyond the current knowledge graph. "
             "Web search expansion will be available in Phase 3."
@@ -64,13 +67,14 @@ def synthesize_answer(state: AgentState) -> AgentState:
         return state
 
     # Handle empty results
-    if not kg_results:
+    if not has_any_results:
         state["answer"] = "I couldn't find information about that in the knowledge graph."
         state["sources"] = []
         state["confidence"] = 0.1
         return state
 
-    print(f"[Synthesizer] Synthesizing answer from {len(kg_results)} results")
+    total = len(kg_results) + len(vector_results)
+    print(f"[Synthesizer] Synthesizing answer from {len(kg_results)} graph + {len(vector_results)} vector results")
 
     provider = get_provider()
     if provider is None:
@@ -81,21 +85,20 @@ def synthesize_answer(state: AgentState) -> AgentState:
 
     try:
         formatted_results = _format_results_for_llm(kg_results)
+        vector_section = _format_vector_results(vector_results)
 
         answer = provider.generate(
             SYNTHESIS_PROMPT.format(
                 query=query,
                 intent=intent,
                 kg_results=formatted_results,
+                vector_section=vector_section,
             ),
             max_tokens=provider.max_synthesize_tokens,
         )
 
-        # Extract sources from results
         sources = _extract_sources(kg_results)
-
-        # Calculate confidence based on result count and intent match
-        confidence = _calculate_confidence(kg_results, intent)
+        confidence = _calculate_confidence(kg_results, intent, vector_results)
 
         state["answer"] = answer
         state["sources"] = sources
@@ -105,7 +108,6 @@ def synthesize_answer(state: AgentState) -> AgentState:
 
     except Exception as e:
         print(f"[Synthesizer] Error: {e}")
-        # Fallback to simple formatting
         state["answer"] = _simple_format_results(kg_results, intent)
         state["sources"] = _extract_sources(kg_results)
         state["confidence"] = 0.5
@@ -191,31 +193,63 @@ def _extract_sources(results: list[dict]) -> list[dict]:
     return sources
 
 
-def _calculate_confidence(results: list[dict], intent: str) -> float:
+def _format_vector_results(vector_results: list[dict]) -> str:
+    """Format vector search results for inclusion in the LLM prompt."""
+    if not vector_results:
+        return ""
+
+    lines = ["\nSemantic Search Results (by similarity):"]
+    for r in vector_results:
+        score = r.get("score", 0)
+        node_id = r.get("node_id", "?")
+        label = r.get("node_label", "?")
+        text = r.get("text", "")
+        # Truncate long texts
+        if len(text) > 200:
+            text = text[:200] + "..."
+        lines.append(f"- {node_id} ({label}, score: {score:.2f}): \"{text}\"")
+    return "\n".join(lines)
+
+
+def _calculate_confidence(results: list[dict], intent: str, vector_results: list[dict] | None = None) -> float:
     """Calculate confidence score based on results and intent."""
-    if not results:
+    if not results and not vector_results:
         return 0.0
 
-    # Base confidence on result count
-    result_count = len(results)
-    if result_count == 0:
-        return 0.0
-    elif result_count >= 5:
+    # Base confidence on graph result count
+    result_count = len(results) if results else 0
+    if result_count >= 5:
         base_confidence = 0.9
     elif result_count >= 3:
         base_confidence = 0.8
     elif result_count >= 1:
         base_confidence = 0.7
+    elif vector_results:
+        # Only vector results available
+        base_confidence = 0.55
     else:
-        base_confidence = 0.5
+        base_confidence = 0.0
 
     # Adjust based on intent
-    # Lookup and path queries are more reliable than comparisons
     if intent in ["lookup", "path"]:
         confidence = base_confidence
     elif intent == "comparison":
         confidence = base_confidence * 0.9
     else:
         confidence = base_confidence * 0.8
+
+    # Boost when graph and vector results overlap (same node_id in both)
+    if results and vector_results:
+        graph_ids = set()
+        for record in results:
+            for value in record.values():
+                if isinstance(value, dict) and "properties" in value:
+                    nid = value["properties"].get("id")
+                    if nid:
+                        graph_ids.add(nid)
+        vector_ids = {r["node_id"] for r in vector_results}
+        overlap = graph_ids & vector_ids
+        if overlap:
+            confidence = min(confidence + 0.05, 1.0)
 
     return round(confidence, 2)

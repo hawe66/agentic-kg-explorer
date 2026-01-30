@@ -63,6 +63,7 @@ def run_agent(query: str) -> AgentState:
         "answer": None,
         "sources": None,
         "confidence": None,
+        "vector_results": None,
         "error": None,
     }
 

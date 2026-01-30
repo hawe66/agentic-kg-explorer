@@ -128,6 +128,9 @@ def plan_search(state: AgentState) -> AgentState:
             "error": f"Unknown intent: {intent}",
         }
 
+    # Decide whether to add vector search
+    strategy = _maybe_add_vector_search(strategy, intent, entities, state.get("user_query", ""))
+
     state["search_strategy"] = strategy
     return state
 
@@ -223,3 +226,44 @@ def _plan_comparison(entities: list[str]) -> dict:
         },
         "template_key": "comparison",
     }
+
+
+def _maybe_add_vector_search(
+    strategy: dict, intent: str, entities: list[str], user_query: str,
+) -> dict:
+    """Decide whether to augment the strategy with vector search.
+
+    Rules:
+    - expansion intent → vector_first (graph has nothing, try semantics)
+    - no cypher template (failed match) → vector_first
+    - lookup/path with entities → hybrid (graph + vector)
+    - otherwise → leave as graph_only
+    """
+    retrieval_type = strategy.get("retrieval_type", "graph_only")
+
+    # Check if vector store is available
+    try:
+        from src.retrieval.vector_store import get_vector_store
+        store = get_vector_store()
+        if not store.is_available:
+            return strategy
+    except Exception:
+        return strategy
+
+    vector_query = user_query or " ".join(entities or [])
+
+    if intent == "expansion":
+        strategy["retrieval_type"] = "vector_first"
+        strategy["vector_query"] = vector_query
+        print(f"[Search Planner] Strategy: vector_first (expansion intent)")
+    elif retrieval_type == "none" or (retrieval_type == "graph_only" and not strategy.get("cypher_template")):
+        # No valid Cypher template — fall back to vector search
+        strategy["retrieval_type"] = "vector_first"
+        strategy["vector_query"] = vector_query
+        print(f"[Search Planner] Strategy: vector_first (no Cypher template)")
+    elif intent in ("lookup", "path") and strategy.get("cypher_template"):
+        strategy["retrieval_type"] = "hybrid"
+        strategy["vector_query"] = vector_query
+        print(f"[Search Planner] Strategy: hybrid (graph + vector)")
+
+    return strategy

@@ -161,7 +161,7 @@ agentic-ai-kg/
 │   ├── graph/             ← Neo4j 클라이언트 & 스키마
 │   ├── agents/            ← LangGraph 에이전트 파이프라인 (✅ 기본 구현)
 │   │   ├── __init__.py    ← 모듈 exports
-│   │   ├── state.py       ← AgentState TypedDict (11 fields)
+│   │   ├── state.py       ← AgentState TypedDict (12 fields, incl. vector_results)
 │   │   ├── graph.py       ← LangGraph 파이프라인 (linear 4-node)
 │   │   ├── README.md      ← 에이전트 아키텍처 문서
 │   │   ├── providers/     ← LLM provider 추상화 (✅ 구현)
@@ -175,11 +175,16 @@ agentic-ai-kg/
 │   │       ├── search_planner.py     ← Cypher 템플릿 선택 (7개)
 │   │       ├── graph_retriever.py    ← Neo4j 쿼리 실행
 │   │       └── synthesizer.py        ← 자연어 답변 생성
+│   ├── retrieval/         ← 벡터 검색 모듈 (✅ 구현)
+│   │   ├── embedder.py    ← OpenAI embedding client
+│   │   ├── vector_store.py ← ChromaDB wrapper (VectorStore, VectorSearchResult)
+│   │   └── __init__.py    ← 모듈 exports
 │   └── api/               ← FastAPI 엔드포인트
 ├── scripts/
 │   ├── load_sample_data.py
 │   ├── test_queries.py
-│   └── test_agent.py     ← 에이전트 CLI 테스트 (11 test queries)
+│   ├── test_agent.py     ← 에이전트 CLI 테스트 (11 test queries)
+│   └── generate_embeddings.py ← KG 노드 임베딩 생성 → ChromaDB 저장
 ├── requirements.txt
 └── .env.example
 ```
@@ -200,7 +205,7 @@ agentic-ai-kg/
 - [x] LLM provider/model 추상화 (OpenAI, Anthropic, Gemini 지원)
 - [x] SSL 조건부 처리 (macOS/Windows/WSL 호환)
 - [ ] Provider config 외부화 (YAML 등으로 provider 선언만으로 전환 가능하게)
-- [ ] 벡터 검색 연동
+- [x] 벡터 검색 연동 (ChromaDB + OpenAI embeddings)
 - [ ] FastAPI + Streamlit
 
 ### Phase 3: 확장 기능

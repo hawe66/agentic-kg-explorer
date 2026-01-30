@@ -111,7 +111,10 @@ agentic-kg-explorer/
 │   │       ├── search_planner.py      # Cypher 템플릿 선택 (7개)
 │   │       ├── graph_retriever.py     # Neo4j 쿼리 실행
 │   │       └── synthesizer.py         # 자연어 답변 생성
-│   ├── retrieval/         # RAG 컴포넌트 (🔜 Phase 2)
+│   ├── retrieval/         # 벡터 검색 (✅ ChromaDB + OpenAI embeddings)
+│   │   ├── embedder.py   # OpenAI embedding client
+│   │   ├── vector_store.py # ChromaDB wrapper (VectorStore, VectorSearchResult)
+│   │   └── __init__.py
 │   ├── optimizer/         # Prompt Optimizer (🔜 Phase 5)
 │   └── api/               # FastAPI 엔드포인트 (🔜 Phase 2)
 ├── data/
@@ -347,7 +350,7 @@ Phase 1에서 구축된 지식 그래프의 핵심 통계:
 - [x] Multi-provider LLM 추상화 (OpenAI, Anthropic, Gemini)
 - [x] 에이전트 테스트 스크립트 (`scripts/test_agent.py`)
 - [ ] Provider config 외부화 (YAML 기반 선언적 전환)
-- [ ] 벡터 검색 연동
+- [x] 벡터 검색 연동 (ChromaDB + OpenAI embeddings, 3-mode retrieval)
 - [ ] FastAPI + Streamlit UI
 
 ### Phase 3: 확장 기능 🔜

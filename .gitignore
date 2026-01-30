@@ -32,6 +32,9 @@ htmlcov/
 # mypy
 .mypy_cache/
 
+# ChromaDB persistent storage
+data/chroma/
+
 # OS
 .DS_Store
 Thumbs.db
