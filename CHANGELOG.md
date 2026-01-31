@@ -159,7 +159,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Remaining Phase 2 Items
 - [ ] **Provider config externalization**: Replace per-provider install/uninstall cycle with declarative config (e.g. YAML) where only `provider: gemini` is needed — router auto-resolves SDK, defaults, SSL. Current approach requires touching `router.py`, `settings.py`, and `pyproject.toml` for every provider change; a config-driven approach would decouple provider selection from code. Scope: `config/`, `src/agents/providers/`, `pyproject.toml` optional-deps grouping.
 - [x] Vector search integration *(see v0.3.0)*
-- [ ] FastAPI REST endpoints
+- [x] FastAPI REST endpoints *(see v0.3.0)*
 - [ ] Streamlit UI
 
 ---
@@ -255,6 +255,37 @@ poetry run python scripts/test_agent.py --query "What is ReAct?"             # h
 - Embedding model hardcoded to OpenAI `text-embedding-3-small`; should follow YAML-driven provider pattern in future
 - ChromaDB telemetry warnings (`capture() takes 1 positional argument`) are harmless
 - No incremental embedding update — `generate_embeddings.py` re-embeds all nodes on each run
+
+### FastAPI REST Endpoints
+
+#### Added
+
+**API Module** (`src/api/`)
+- `app.py` — FastAPI app factory with lifespan context manager
+- `routes.py` — 4 route handlers
+- `schemas.py` — Pydantic request/response models (QueryRequest, QueryResponse, HealthResponse, StatsResponse, PrinciplesResponse)
+
+**Endpoints**:
+- `POST /query` — Run agent pipeline, returns answer + intent + sources + vector results. Supports `llm_provider`/`llm_model` override.
+- `GET /health` — Neo4j connectivity + ChromaDB entry count
+- `GET /stats` — Node/relationship counts by label/type
+- `GET /graph/principles` — All 11 principles with method and implementation counts
+
+**Seed Data** (`neo4j/seed_data.cypher`)
+- Added `description` field to all 16 Implementation nodes (required for vector embedding)
+
+**Migration** (`neo4j/migrations/001_add_impl_descriptions.cypher`)
+- SET description on existing Implementation nodes in live Neo4j
+
+**Scripts**
+- `scripts/run_migration.py` — Generic Cypher migration runner
+
+#### Usage
+
+```bash
+poetry run uvicorn src.api.app:app --reload --port 8000
+# Swagger UI: http://localhost:8000/docs
+```
 
 ---
 

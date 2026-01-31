@@ -351,7 +351,8 @@ Phase 1에서 구축된 지식 그래프의 핵심 통계:
 - [x] 에이전트 테스트 스크립트 (`scripts/test_agent.py`)
 - [ ] Provider config 외부화 (YAML 기반 선언적 전환)
 - [x] 벡터 검색 연동 (ChromaDB + OpenAI embeddings, 3-mode retrieval)
-- [ ] FastAPI + Streamlit UI
+- [x] FastAPI REST endpoints (POST /query, GET /health, /stats, /graph/principles)
+- [ ] Streamlit UI
 
 ### Phase 3: 확장 기능 🔜
 - [ ] Web Search Expander

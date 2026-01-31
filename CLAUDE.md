@@ -206,7 +206,8 @@ agentic-ai-kg/
 - [x] SSL 조건부 처리 (macOS/Windows/WSL 호환)
 - [ ] Provider config 외부화 (YAML 등으로 provider 선언만으로 전환 가능하게)
 - [x] 벡터 검색 연동 (ChromaDB + OpenAI embeddings)
-- [ ] FastAPI + Streamlit
+- [x] FastAPI REST endpoints (POST /query, GET /health, /stats, /graph/principles)
+- [ ] Streamlit UI
 
 ### Phase 3: 확장 기능
 - [ ] Web Search Expander
