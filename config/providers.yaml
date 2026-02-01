@@ -1,0 +1,44 @@
+# Provider Registry
+# -----------------
+# Switching providers: change LLM_PROVIDER in .env (no code changes).
+# Adding a new provider: create src/agents/providers/<name>.py + add entry here.
+#
+# .env overrides (LLM_MODEL, LLM_MAX_CLASSIFY_TOKENS, LLM_FALLBACK_PROVIDER, etc.)
+# always take precedence over defaults defined here.
+
+providers:
+  anthropic:
+    module: src.agents.providers.anthropic
+    class: AnthropicProvider
+    default_model: claude-3-5-sonnet-20241022
+    api_key_env: ANTHROPIC_API_KEY
+    ssl_client_type: httpx           # httpx | httpx_openai | gemini | null
+    constructor_ssl_kwarg: http_client
+    max_classify_tokens: 500
+    max_synthesize_tokens: 2000
+    fallback_provider: openai
+    fallback_model: gpt-4.1
+
+  openai:
+    module: src.agents.providers.openai
+    class: OpenAIProvider
+    default_model: gpt-4.1
+    api_key_env: OPENAI_API_KEY
+    ssl_client_type: httpx_openai
+    constructor_ssl_kwarg: http_client
+    max_classify_tokens: 500
+    max_synthesize_tokens: 2000
+    fallback_provider: anthropic
+    fallback_model: claude-3-5-sonnet-20241022
+
+  gemini:
+    module: src.agents.providers.gemini
+    class: GeminiProvider
+    default_model: gemini-2.5-flash
+    api_key_env: GEMINI_API_KEY
+    ssl_client_type: gemini
+    constructor_ssl_kwarg: http_options
+    max_classify_tokens: 500
+    max_synthesize_tokens: 2000
+    fallback_provider: openai
+    fallback_model: gpt-4.1

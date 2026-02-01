@@ -5,7 +5,9 @@
       "Bash(C:/Users/조영하/AppData/Local/pypoetry/Cache/virtualenvs/agentic-kg-explorer-Vxs5hbQW-py3.11/Scripts/python.exe -c \"\nfrom dotenv import load_dotenv\nimport os\nload_dotenv\\(\\)\n\nfrom neo4j import GraphDatabase\n\nuri = os.getenv\\(''NEO4J_URI''\\)\nusername = os.getenv\\(''NEO4J_USERNAME''\\)\npassword = os.getenv\\(''NEO4J_PASSWORD''\\)\n\nprint\\(f''Attempting connection to: {uri}''\\)\nprint\\(f''Username: {username}''\\)\nprint\\(f''Password: {password[:10]}...''\\)\n\ntry:\n    driver = GraphDatabase.driver\\(uri, auth=\\(username, password\\)\\)\n    driver.verify_connectivity\\(\\)\n    print\\(''✓ Connection successful!''\\)\n    driver.close\\(\\)\nexcept Exception as e:\n    print\\(f''✗ Connection failed: {e}''\\)\n    import traceback\n    traceback.print_exc\\(\\)\n\")",
       "Bash(wsl ls:*)",
       "Bash(wsl.exe bash -c \"cd /mnt/d/doc_link_project/agentic-kg-explorer && poetry run python scripts/test_queries.py\")",
-      "Bash(C:/Users/조영하/AppData/Local/pypoetry/Cache/virtualenvs/agentic-kg-explorer-Vxs5hbQW-py3.11/Scripts/python.exe scripts/load_sample_data.py --clear)"
+      "Bash(C:/Users/조영하/AppData/Local/pypoetry/Cache/virtualenvs/agentic-kg-explorer-Vxs5hbQW-py3.11/Scripts/python.exe scripts/load_sample_data.py --clear)",
+      "Bash(find:*)",
+      "Bash(poetry run python:*)"
     ]
   }
 }

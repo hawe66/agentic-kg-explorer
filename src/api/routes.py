@@ -16,6 +16,7 @@ from .schemas import (
     SourceItem,
     StatsResponse,
     VectorResultItem,
+    KgResultItem,
 )
 
 router = APIRouter()
@@ -51,10 +52,10 @@ def query_agent(request: QueryRequest):
     original_provider = settings.llm_provider
     original_model = settings.llm_model
 
-    if request.llm_provider:
+    if request.llm_provider and request.llm_provider != "string":
         settings.llm_provider = request.llm_provider
         overridden = True
-    if request.llm_model:
+    if request.llm_model and request.llm_model != "string":
         settings.llm_model = request.llm_model
         overridden = True
 
@@ -78,6 +79,9 @@ def query_agent(request: QueryRequest):
             VectorResultItem(**v) for v in (result.get("vector_results") or [])
         ],
         cypher_executed=result.get("cypher_executed") or [],
+        kg_results=[
+            KgResultItem(**k) for k in (result.get("kg_results") or [])
+        ],
         error=result.get("error"),
     )
 

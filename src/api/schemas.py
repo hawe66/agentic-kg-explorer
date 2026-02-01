@@ -27,6 +27,13 @@ class VectorResultItem(BaseModel):
     score: float
 
 
+class KgResultItem(BaseModel):
+    """Flexible container for serialized Neo4j records."""
+
+    class Config:
+        extra = "allow"
+
+
 class QueryResponse(BaseModel):
     answer: str | None
     intent: str | None
@@ -35,6 +42,7 @@ class QueryResponse(BaseModel):
     sources: list[SourceItem]
     vector_results: list[VectorResultItem]
     cypher_executed: list[str]
+    kg_results: list[KgResultItem]
     error: str | None
 
 

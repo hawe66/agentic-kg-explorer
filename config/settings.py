@@ -51,12 +51,6 @@ class Settings:
 
         self.llm_enabled = _env_bool(os.getenv("LLM_ENABLED"), True)
         self.llm_provider = os.getenv("LLM_PROVIDER", "anthropic")
-        self.llm_model = os.getenv("LLM_MODEL")
-        self.llm_max_classify_tokens = int(os.getenv("LLM_MAX_CLASSIFY_TOKENS", "500"))
-        self.llm_max_synthesize_tokens = int(os.getenv("LLM_MAX_SYNTHESIZE_TOKENS", "1000"))
-        self.llm_fallback_provider = os.getenv("LLM_FALLBACK_PROVIDER")
-        self.llm_fallback_max_classify_tokens = int(os.getenv("LLM_FALLBACK_MAX_CLASSIFY_TOKENS", "500"))
-        self.llm_fallback_max_synthesize_tokens = int(os.getenv("LLM_FALLBACK_MAX_SYNTHESIZE_TOKENS", "2000"))
 
         # Raise error if required settings are missing
         required_fields = [
@@ -75,7 +69,6 @@ class Settings:
         print(f"  NEO4J_DATABASE: {self.neo4j_database}")
         print(f"  LLM_ENABLED: {self.llm_enabled}")
         print(f"  LLM_PROVIDER: {self.llm_provider}")
-        print(f"  LLM_MODEL: {self.llm_model}")
 
 
 _cached_settings: Settings | None = None
