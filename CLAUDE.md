@@ -179,7 +179,10 @@ agentic-ai-kg/
 │   │   ├── embedder.py    ← OpenAI embedding client
 │   │   ├── vector_store.py ← ChromaDB wrapper (VectorStore, VectorSearchResult)
 │   │   └── __init__.py    ← 모듈 exports
-│   └── api/               ← FastAPI 엔드포인트
+│   ├── api/               ← FastAPI 엔드포인트
+│   └── ui/                ← Streamlit Chat UI (✅ 구현)
+│       ├── __init__.py
+│       └── app.py         ← 대화형 채팅 인터페이스
 ├── scripts/
 │   ├── load_sample_data.py
 │   ├── test_queries.py
@@ -207,7 +210,7 @@ agentic-ai-kg/
 - [ ] Provider config 외부화 (YAML 등으로 provider 선언만으로 전환 가능하게)
 - [x] 벡터 검색 연동 (ChromaDB + OpenAI embeddings)
 - [x] FastAPI REST endpoints (POST /query, GET /health, /stats, /graph/principles)
-- [ ] Streamlit UI
+- [x] Streamlit Chat UI (`src/ui/app.py`)
 
 ### Phase 3: 확장 기능
 - [ ] Web Search Expander

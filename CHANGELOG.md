@@ -160,7 +160,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] **Provider config externalization**: Replace per-provider install/uninstall cycle with declarative config (e.g. YAML) where only `provider: gemini` is needed — router auto-resolves SDK, defaults, SSL. Current approach requires touching `router.py`, `settings.py`, and `pyproject.toml` for every provider change; a config-driven approach would decouple provider selection from code. Scope: `config/`, `src/agents/providers/`, `pyproject.toml` optional-deps grouping.
 - [x] Vector search integration *(see v0.3.0)*
 - [x] FastAPI REST endpoints *(see v0.3.0)*
-- [ ] Streamlit UI
+- [x] Streamlit Chat UI *(see v0.3.1)*
+
+---
+
+## [0.3.1] - 2026-02-02
+
+### Streamlit Chat UI
+
+#### Added
+
+**UI Module** (`src/ui/`)
+- `app.py` — Streamlit chat interface calling FastAPI `POST /query`
+- `__init__.py` — module init
+
+**Features**:
+- Chat interface using `st.chat_message` / `st.chat_input` with session history
+- Sidebar: API URL config, LLM provider/model override dropdowns (openai, anthropic, gemini)
+- Expandable detail sections per response:
+  - Intent & Entities — intent badge + entity chips
+  - Sources — typed list (type, id, name)
+  - Vector Results — dataframe with node_id, label, score
+  - Cypher Queries — syntax-highlighted code blocks
+  - Raw KG Results — JSON viewer
+- Color-coded confidence indicator (green >= 70%, orange >= 40%, red < 40%)
+- Connection error handling when FastAPI is unavailable
+- Clear chat button
+
+**`pyproject.toml`**
+- Added `streamlit = "^1.40.0"`
+
+#### Usage
+
+```bash
+# Terminal 1: FastAPI backend
+poetry run uvicorn src.api.app:app --reload --port 8000
+
+# Terminal 2: Streamlit frontend
+poetry run streamlit run src/ui/app.py
+```
 
 ---
 

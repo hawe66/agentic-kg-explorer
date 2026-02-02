@@ -116,7 +116,10 @@ agentic-kg-explorer/
 │   │   ├── vector_store.py # ChromaDB wrapper (VectorStore, VectorSearchResult)
 │   │   └── __init__.py
 │   ├── optimizer/         # Prompt Optimizer (🔜 Phase 5)
-│   └── api/               # FastAPI 엔드포인트 (🔜 Phase 2)
+│   ├── api/               # FastAPI 엔드포인트 (✅ 구현됨)
+│   └── ui/                # Streamlit Chat UI (✅ 구현됨)
+│       ├── __init__.py
+│       └── app.py         # 대화형 채팅 인터페이스
 ├── data/
 │   ├── raw/               # 원본 데이터 (비어있음)
 │   ├── processed/         # 처리된 데이터 (비어있음)
@@ -352,7 +355,7 @@ Phase 1에서 구축된 지식 그래프의 핵심 통계:
 - [ ] Provider config 외부화 (YAML 기반 선언적 전환)
 - [x] 벡터 검색 연동 (ChromaDB + OpenAI embeddings, 3-mode retrieval)
 - [x] FastAPI REST endpoints (POST /query, GET /health, /stats, /graph/principles)
-- [ ] Streamlit UI
+- [x] Streamlit Chat UI (`src/ui/app.py`)
 
 ### Phase 3: 확장 기능 🔜
 - [ ] Web Search Expander
