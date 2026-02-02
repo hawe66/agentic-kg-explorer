@@ -7,7 +7,8 @@
       "Bash(wsl.exe bash -c \"cd /mnt/d/doc_link_project/agentic-kg-explorer && poetry run python scripts/test_queries.py\")",
       "Bash(C:/Users/조영하/AppData/Local/pypoetry/Cache/virtualenvs/agentic-kg-explorer-Vxs5hbQW-py3.11/Scripts/python.exe scripts/load_sample_data.py --clear)",
       "Bash(find:*)",
-      "Bash(poetry run python:*)"
+      "Bash(poetry run python:*)",
+      "Bash(git checkout:*)"
     ]
   }
 }
