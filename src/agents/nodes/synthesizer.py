@@ -90,8 +90,8 @@ def synthesize_answer(state: AgentState) -> AgentState:
             max_tokens=provider.max_synthesize_tokens,
         )
 
-        sources = _extract_sources(kg_results) + _extract_web_sources(web_results)
-        confidence = _calculate_confidence(kg_results, intent, vector_results, web_results)
+        sources = _extract_sources(kg_results)
+        confidence = _calculate_confidence(kg_results, intent, vector_results)
 
         state["answer"] = answer
         state["sources"] = sources
