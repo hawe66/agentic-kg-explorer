@@ -1,0 +1,15 @@
+- critic should recognize whether the retrieved data are insufficient to explain the query.
+- human intents are too narrow.
+- search planner is hard-coded. (Determine path direction based on entity type and intent type)
+- 'INTENT_CLASSIFICATION_PROMPT', '_extract_entities' doesn't have info over graphdb's entities. Cannot exactly extract entities.
+- cypher queries are too limited to search knowledge graph in a various way.
+    - **IMPORTANT**: This project objective is to build a good knowledge graph to express agentic AI as a knowledge. It's not just making a chatbot.
+- ABSOLUTELY NONSENSE. MUST CHANGE THING. 
+    - `Base confidence on graph result count`: _calculate_confidence at src/agents/nodes/synthesizer.py
+- nice if the md files introduced from this link [langchain docs](https://docs.langchain.com/llms.txt) are uploaded inside data/papers. Nicer if you make a script for crwaling this link. Much nicer if script is not this link specific but rather general
+- streamlit ui are inconvenient
+    - if i click example queries, it appears at chat ui but agent doesn't reply.
+    - sometimes web reseult fonts are too big.
+    - if i have to add to kg, I have to move all along upside. maybe better if a new block with highest z (upfront) would be more convenient.
+    - add local docs upload ui (to data/papers)
+- newly added docs entities in kg should be linked to principle/method/implementation.

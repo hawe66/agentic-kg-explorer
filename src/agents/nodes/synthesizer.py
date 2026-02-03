@@ -211,13 +211,16 @@ def _format_vector_results(vector_results: list[dict]) -> str:
     lines = ["\nSemantic Search Results (by similarity):"]
     for r in vector_results:
         score = r.get("score", 0)
-        node_id = r.get("node_id", "?")
+        node_id = r.get("node_id") or r.get("source_id", "?")
         label = r.get("node_label", "?")
+        title = r.get("title", "")
         text = r.get("text", "")
         # Truncate long texts
-        if len(text) > 200:
-            text = text[:200] + "..."
-        lines.append(f"- {node_id} ({label}, score: {score:.2f}): \"{text}\"")
+        if len(text) > 300:
+            text = text[:300] + "..."
+        display = title if title else node_id
+        lines.append(f"- {display} ({label}, score: {score:.2f}):")
+        lines.append(f"  {text}")
     return "\n".join(lines)
 
 

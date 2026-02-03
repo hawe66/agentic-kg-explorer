@@ -1,11 +1,13 @@
 # Provider Registry
 # -----------------
-# Switching providers: change LLM_PROVIDER in .env (no code changes).
-# Adding a new provider: create src/agents/providers/<name>.py + add entry here.
+# Switching providers: change LLM_PROVIDER or EMBEDDING_PROVIDER in .env (no code changes).
+# Adding a new provider: create the provider class + add entry here.
 #
-# .env overrides (LLM_MODEL, LLM_MAX_CLASSIFY_TOKENS, LLM_FALLBACK_PROVIDER, etc.)
-# always take precedence over defaults defined here.
+# .env overrides (LLM_MODEL, EMBEDDING_MODEL, etc.) always take precedence over defaults here.
 
+# ---------------------------------------------------------------------------
+# LLM Providers (for text generation)
+# ---------------------------------------------------------------------------
 providers:
   anthropic:
     module: src.agents.providers.anthropic
@@ -42,3 +44,30 @@ providers:
     max_synthesize_tokens: 2000
     fallback_provider: openai
     fallback_model: gpt-4.1
+
+
+# ---------------------------------------------------------------------------
+# Embedding Providers (for vector search)
+# ---------------------------------------------------------------------------
+# Switching: set EMBEDDING_PROVIDER in .env (default: openai)
+# Model override: set EMBEDDING_MODEL in .env
+
+embedding_providers:
+  openai:
+    module: src.retrieval.providers.openai
+    class: OpenAIEmbeddingProvider
+    default_model: text-embedding-3-small
+    api_key_env: OPENAI_API_KEY
+    ssl_client_type: httpx_openai
+    constructor_ssl_kwarg: http_client
+    fallback_provider: null
+
+  # Future: local HuggingFace provider
+  # local:
+  #   module: src.retrieval.providers.local
+  #   class: LocalEmbeddingProvider
+  #   default_model: sentence-transformers/all-MiniLM-L6-v2
+  #   api_key_env: null  # no API key needed
+  #   ssl_client_type: null
+  #   constructor_ssl_kwarg: null
+  #   fallback_provider: openai

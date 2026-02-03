@@ -20,10 +20,20 @@ class SourceItem(BaseModel):
 
 
 class VectorResultItem(BaseModel):
-    node_id: str
-    node_label: str
+    """Vector search result with unified schema."""
+
+    # Identity
+    source_type: str        # "kg_node" | "web_search" | "paper"
+    source_id: str          # node_id for KG, URL hash for web
+    source_url: str | None  # URL for web results
+
+    # KG linkage
+    node_id: str | None
+    node_label: str | None
+
+    # Content
+    title: str
     text: str
-    field: str
     score: float
 
 
@@ -92,3 +102,79 @@ class PrincipleItem(BaseModel):
 
 class PrinciplesResponse(BaseModel):
     principles: list[PrincipleItem]
+
+
+# ---------------------------------------------------------------------------
+# POST /graph/nodes/propose
+# ---------------------------------------------------------------------------
+
+class ProposeNodeRequest(BaseModel):
+    """Request to propose a KG node from web content."""
+    title: str = Field(..., description="Web result title")
+    url: str = Field(..., description="Web result URL")
+    content: str = Field(..., description="Web result content snippet")
+
+
+class ProposedNodeResponse(BaseModel):
+    """LLM-extracted node proposal."""
+    node_type: str  # Method | Implementation | Document
+    node_id: str
+    name: str
+    description: str
+
+    # Optional fields based on node_type
+    method_family: str | None = None
+    method_type: str | None = None
+    granularity: str | None = None
+    addresses: list[dict] | None = None
+
+    impl_type: str | None = None
+    maintainer: str | None = None
+    source_repo: str | None = None
+    implements: list[dict] | None = None
+
+    doc_type: str | None = None
+    authors: list[str] | None = None
+    year: int | None = None
+    venue: str | None = None
+    proposes: list[str] | None = None
+
+    source_url: str
+    confidence: float
+
+
+# ---------------------------------------------------------------------------
+# POST /graph/nodes/approve
+# ---------------------------------------------------------------------------
+
+class ApproveNodeRequest(BaseModel):
+    """Request to approve and create a proposed node."""
+    node_type: str
+    node_id: str
+    name: str
+    description: str
+
+    method_family: str | None = None
+    method_type: str | None = None
+    granularity: str | None = None
+    addresses: list[dict] | None = None
+
+    impl_type: str | None = None
+    maintainer: str | None = None
+    source_repo: str | None = None
+    implements: list[dict] | None = None
+
+    doc_type: str | None = None
+    authors: list[str] | None = None
+    year: int | None = None
+    venue: str | None = None
+    proposes: list[str] | None = None
+
+    source_url: str
+
+
+class ApproveNodeResponse(BaseModel):
+    """Result of node approval."""
+    success: bool
+    node_id: str
+    message: str

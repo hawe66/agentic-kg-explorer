@@ -252,9 +252,9 @@ poetry run python scripts/test_agent.py --query "What is ReAct?"             # h
 - If `OPENAI_API_KEY` is not set → `get_embedding_client()` returns `None` → vector search skipped
 
 #### Known Limitations
-- Embedding model hardcoded to OpenAI `text-embedding-3-small`; should follow YAML-driven provider pattern in future
+- ~~Embedding model hardcoded to OpenAI `text-embedding-3-small`~~ → **Fixed in v0.4.1** (YAML-driven provider pattern)
 - ChromaDB telemetry warnings (`capture() takes 1 positional argument`) are harmless
-- No incremental embedding update — `generate_embeddings.py` re-embeds all nodes on each run
+- ~~No incremental embedding update~~ → **Fixed in v0.4.1** (hash-based change detection)
 
 ### FastAPI REST Endpoints
 
@@ -285,6 +285,69 @@ poetry run python scripts/test_agent.py --query "What is ReAct?"             # h
 ```bash
 poetry run uvicorn src.api.app:app --reload --port 8000
 # Swagger UI: http://localhost:8000/docs
+```
+
+---
+
+## [0.4.1] - 2026-02-03
+
+### Vector DB Refactor & Embedding Abstraction
+
+#### Added
+
+**Embedding Provider Abstraction** (`src/retrieval/providers/`)
+- `EmbeddingProvider` abstract base class in `base.py`
+- `OpenAIEmbeddingProvider` implementation in `openai.py`
+- YAML-driven provider router in `router.py`
+- Configure via `EMBEDDING_PROVIDER` and `EMBEDDING_MODEL` env vars
+- Backward compatible: `get_embedding_client()` still works
+
+**Incremental Embedding Updates** (`scripts/generate_embeddings.py`)
+- Hash-based change detection (`data/embedding_hashes.json`)
+- `--reset` flag for full rebuild (clears collection and hashes)
+- `--dry-run` flag to preview changes without embedding
+- Only re-embeds changed nodes (cost saving)
+
+**Web Results Persistence** (`src/agents/nodes/web_search.py`)
+- Web search results now persisted to ChromaDB
+- ID format: `web:{url_hash}:{chunk_index}`
+- Metadata includes `search_query` for tracking
+
+#### Changed
+
+**Unified Node Text with Relationship Context** (`scripts/generate_embeddings.py`)
+- Complete rewrite: nodes now embedded as unified text with relationship context
+- Cypher queries fetch ADDRESSES, IMPLEMENTS relationships for richer context
+- Text includes: name, description, family/type, principles addressed, implementations
+- ID schema changed: `kg:{node_id}` (was `{node_id}:{field}`)
+
+**Extended Metadata Schema** (all vector entries)
+- `source_type`: `kg_node` | `web_search` | `paper`
+- `source_id`: node_id for KG, URL hash for web
+- `source_url`: URL for web results
+- `collected_at`: ISO timestamp
+- `collector`: script/agent that created entry
+- `node_id`, `node_label`: KG linkage
+- `title`, `chunk_index`, `total_chunks`
+
+**Vector Store Updates** (`src/retrieval/vector_store.py`)
+- New collection: `kg_nodes_v2` (migration from old schema)
+- `VectorSearchResult` dataclass updated for unified schema
+- Added `reset()`, `delete_by_prefix()`, `upsert()` methods
+- Metadata filtering support in `query()`
+
+**API Schema Updates** (`src/api/schemas.py`)
+- `VectorResultItem` updated with unified fields
+
+**Config** (`config/providers.yaml`)
+- Added `embedding_providers` section
+- OpenAI embedding provider with SSL support
+
+#### Migration
+
+Run to regenerate embeddings with new schema:
+```bash
+poetry run python scripts/generate_embeddings.py --reset
 ```
 
 ---
