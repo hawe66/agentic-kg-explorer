@@ -15,13 +15,18 @@ class AgentState(TypedDict):
     """Original user question"""
 
     # ===== Intent Classification =====
-    intent: Optional[Literal["lookup", "path", "comparison", "expansion"]]
+    intent: Optional[str]
     """
-    Query intent type:
+    Query intent type (loaded from config/intents.yaml):
     - lookup: Single concept lookup (e.g., "What is ReAct?")
-    - path: Relationship exploration (e.g., "Methods for Planning principle?")
+    - exploration/path: Relationship exploration (e.g., "Methods for Planning?")
+    - path_trace: Multi-hop path tracing (e.g., "How does CoT connect to LangChain?")
     - comparison: Multi-concept comparison (e.g., "CrewAI vs AutoGen")
-    - expansion: Information not in graph (requires web search in Phase 3)
+    - aggregation: Statistics and counts (e.g., "Methods per principle?")
+    - coverage_check: KG quality analysis (e.g., "Methods without papers?")
+    - definition: Schema explanation (e.g., "What is ADDRESSES relationship?")
+    - expansion: Requires web search (within domain)
+    - out_of_scope: Outside Agentic AI domain
     """
 
     entities: Optional[list[str]]

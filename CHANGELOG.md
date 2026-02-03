@@ -417,9 +417,118 @@ poetry run python scripts/test_agent.py --query "What are the latest agent frame
 
 ## [Unreleased]
 
-### Phase 3b: Expansion (Planned)
-- [ ] User approval workflow UI for adding web results to KG
-- [ ] Graph visualization
+### P0 Fixes: Confidence & Intent Redesign (In Progress)
+
+#### Added
+
+**Entity Catalog System** (`scripts/generate_entity_catalog.py`)
+- Extracts all entities from Neo4j → `data/entity_catalog.json`
+- Includes: principles, methods, implementations, standards
+- Builds alias map (CoT → m:cot, RAG → m:rag, etc.)
+- Used by intent classifier for dynamic entity context
+
+**`out_of_scope` Intent** (`src/agents/nodes/intent_classifier.py`, `src/agents/state.py`)
+- New intent type for queries outside Agentic AI domain
+- Examples: "What's the weather?", "Tell me a joke"
+- Returns polite rejection message, confidence=0.0
+
+#### Changed
+
+**Intent Classifier Redesign** (`src/agents/nodes/intent_classifier.py`)
+- Loads entity catalog dynamically into prompt
+- Prompt now shows actual KG entities (not hardcoded list)
+- Added `_normalize_entities()` to map aliases → canonical IDs
+- Fallback extraction now uses catalog when available
+- 5 intents: lookup, path, comparison, expansion, out_of_scope
+
+**Confidence Calculation Redesign** (`src/agents/nodes/synthesizer.py`)
+- **OLD**: Count-based (5+ results = 0.9, etc.) — BROKEN
+- **NEW**: Multi-dimensional weighted scoring:
+  - Entity match (0.3): Did we find requested entities?
+  - Intent fulfillment (0.3): Does result structure match intent?
+  - Data completeness (0.2): Are key fields populated?
+  - Vector similarity (0.2): Semantic relevance score
+- New helper functions: `_calc_entity_match_score()`, `_calc_intent_fulfillment_score()`, `_calc_completeness_score()`, `_calc_vector_similarity_score()`
+
+**State Schema** (`src/agents/state.py`)
+- Added `out_of_scope` to intent Literal type
+
+#### Verified
+- [x] Entity catalog generated: 11 principles, 33 methods, 16 implementations, 3 standards, 92 aliases
+- [x] Intent classification: lookup, comparison, expansion, out_of_scope all working
+- [x] Confidence scoring: ReAct lookup=0.96, comparison=0.90, expansion=0.69, out_of_scope=0.0
+- [x] Entity normalization: "LangChain" → `impl:langchain`, "ReAct" → `m:react`
+
+---
+
+### P1 Fixes: YAML Externalization & UI Improvements ✅
+
+#### Added
+
+**Intent Configuration** (`config/intents.yaml`)
+- 11 intent types: lookup, exploration, path_trace, aggregation, comparison, recommendation, coverage_check, definition, update, expansion, out_of_scope
+- Each intent has: description, examples, entity_count
+- Backward compatibility aliases (path → exploration)
+
+**Cypher Templates Configuration** (`config/cypher_templates.yaml`)
+- Entity type detection patterns (Principle, Implementation, Method, Standard)
+- 20+ Cypher templates organized by intent
+- New templates: lookup_standard, path_trace_*, comparison_methods, comparison_principles, aggregation_*, coverage_check_*, definition_*
+- Default template fallbacks per intent
+
+#### Changed
+
+**Search Planner** (`src/agents/nodes/search_planner.py`)
+- Loads templates from YAML instead of hardcoded dict
+- `_load_config()`: Lazy-loads YAML config
+- `_detect_entity_type()`: Uses config patterns
+- `_select_template()`: Matches intent + entity types to template
+- Supports new intents: exploration, path_trace, aggregation, coverage_check, definition
+
+**Intent Classifier** (`src/agents/nodes/intent_classifier.py`)
+- Loads intent definitions from `config/intents.yaml`
+- `_load_intents_config()`: Lazy-loads YAML config
+- `_build_intent_list()`: Builds prompt dynamically from config
+- `_extract_intent()`: Supports all config-defined intents
+- Updated fallback heuristics for new intents (aggregation, coverage_check, definition)
+
+**Agent State** (`src/agents/state.py`)
+- Intent type changed from Literal to `str` to support dynamic intents from config
+
+**Streamlit UI** (`src/ui/app.py`)
+- Example query buttons now auto-execute (not just add to chat)
+- Web results in collapsible expander with smaller font
+- "Add to KG" panel moved to bottom in expander
+- Custom CSS for compact web result display
+
+#### Verified
+- Aggregation: "How many methods address each principle?" → 11 results
+- Coverage check: "Which methods are missing paper references?" → 29 results
+- New intents working with YAML-driven prompt and templates
+
+### Phase 3b: Expansion ✅ Complete
+- [x] User approval workflow UI for adding web results to KG
+- [x] Graph visualization with streamlit-agraph
+
+#### Added
+
+**Graph Visualization** (`src/ui/app.py`)
+- Interactive knowledge graph visualization using `streamlit-agraph`
+- Sidebar toggle to show/hide graph view
+- Two view modes: "Overview (P→M→I)" and "From Last Query"
+- Node colors by type (Principle=red, Method=teal, Implementation=blue, Standard=green)
+- Configurable max nodes slider (10-100)
+- Legend and node count display
+
+**Helper Functions**
+- `fetch_kg_subgraph()`: Fetches graph data from Neo4j (overview or centered on entity)
+- `build_graph_from_results()`: Builds graph nodes/edges from query results
+
+**Dependencies**
+- Added `streamlit-agraph` to `pyproject.toml`
+
+#### Known Issues
+- Graph visualization shows "No graph data available" even when Neo4j is connected — needs investigation (node/relationship serialization from Neo4j driver may differ from expected format)
 
 ### Phase 4: Critic Agent (Planned)
 - [ ] Evaluation principles and methods

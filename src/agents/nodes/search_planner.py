@@ -1,94 +1,77 @@
 """Search planning node for generating Cypher query strategies."""
 
+import yaml
+from pathlib import Path
+from typing import Optional
+
 from ..state import AgentState
 
 
-# Cypher query templates for different intents
-CYPHER_TEMPLATES = {
-    "lookup_method": """
-        // Find method by name (case-insensitive)
-        MATCH (m:Method)
-        WHERE toLower(m.name) CONTAINS toLower($entity)
-           OR m.id = $entity
-        OPTIONAL MATCH (m)-[addr:ADDRESSES]->(p:Principle)
-        OPTIONAL MATCH (i:Implementation)-[impl:IMPLEMENTS]->(m)
-        RETURN m,
-               collect(DISTINCT {principle: p, role: addr.role, weight: addr.weight}) as principles,
-               collect(DISTINCT {implementation: i, support_level: impl.support_level}) as implementations
-        LIMIT 10
-    """,
-    "lookup_implementation": """
-        // Find implementation by name
-        MATCH (i:Implementation)
-        WHERE toLower(i.name) CONTAINS toLower($entity)
-           OR i.id = $entity
-        OPTIONAL MATCH (i)-[impl:IMPLEMENTS]->(m:Method)
-        OPTIONAL MATCH (m)-[addr:ADDRESSES]->(p:Principle)
-        RETURN i,
-               collect(DISTINCT {method: m, support_level: impl.support_level}) as methods,
-               collect(DISTINCT p) as principles
-        LIMIT 10
-    """,
-    "lookup_principle": """
-        // Find principle by name
-        MATCH (p:Principle)
-        WHERE toLower(p.name) CONTAINS toLower($entity)
-           OR p.id = $entity
-        OPTIONAL MATCH (m:Method)-[addr:ADDRESSES]->(p)
-        OPTIONAL MATCH (i:Implementation)-[:IMPLEMENTS]->(m)
-        RETURN p,
-               collect(DISTINCT {method: m, role: addr.role, weight: addr.weight}) as methods,
-               count(DISTINCT i) as implementation_count
-        LIMIT 10
-    """,
-    "path_principle_to_methods": """
-        // Find methods that address a principle
-        MATCH (p:Principle)
-        WHERE toLower(p.name) CONTAINS toLower($entity)
-           OR p.id = $entity
-        MATCH (m:Method)-[addr:ADDRESSES]->(p)
-        OPTIONAL MATCH (i:Implementation)-[impl:IMPLEMENTS]->(m)
-        RETURN p, m, addr,
-               collect(DISTINCT {implementation: i, support_level: impl.support_level}) as implementations
-        ORDER BY addr.weight DESC
-        LIMIT 20
-    """,
-    "path_method_to_implementations": """
-        // Find implementations of a method
-        MATCH (m:Method)
-        WHERE toLower(m.name) CONTAINS toLower($entity)
-           OR m.id = $entity
-        MATCH (i:Implementation)-[impl:IMPLEMENTS]->(m)
-        OPTIONAL MATCH (m)-[addr:ADDRESSES]->(p:Principle)
-        RETURN m, i, impl,
-               collect(DISTINCT {principle: p, role: addr.role}) as principles
-        ORDER BY impl.support_level
-        LIMIT 20
-    """,
-    "path_implementation_to_principles": """
-        // Find principles supported by an implementation
-        MATCH (i:Implementation)
-        WHERE toLower(i.name) CONTAINS toLower($entity)
-           OR i.id = $entity
-        MATCH (i)-[impl:IMPLEMENTS]->(m:Method)-[addr:ADDRESSES]->(p:Principle)
-        RETURN i, m, p, impl, addr
-        ORDER BY p.name, addr.weight DESC
-        LIMIT 30
-    """,
-    "comparison": """
-        // Compare two implementations
-        MATCH (i1:Implementation), (i2:Implementation)
-        WHERE (toLower(i1.name) CONTAINS toLower($entity1) OR i1.id = $entity1)
-          AND (toLower(i2.name) CONTAINS toLower($entity2) OR i2.id = $entity2)
-        OPTIONAL MATCH (i1)-[impl1:IMPLEMENTS]->(m1:Method)
-        OPTIONAL MATCH (i2)-[impl2:IMPLEMENTS]->(m2:Method)
-        OPTIONAL MATCH (m1)-[:ADDRESSES]->(p:Principle)<-[:ADDRESSES]-(m2)
-        RETURN i1, i2,
-               collect(DISTINCT m1) as methods1,
-               collect(DISTINCT m2) as methods2,
-               collect(DISTINCT p) as common_principles
-    """,
-}
+# Load configuration from YAML
+_CONFIG_PATH = Path("config/cypher_templates.yaml")
+_config: Optional[dict] = None
+
+
+def _load_config() -> dict:
+    """Load Cypher templates configuration from YAML."""
+    global _config
+    if _config is not None:
+        return _config
+
+    if _CONFIG_PATH.exists():
+        with open(_CONFIG_PATH, "r", encoding="utf-8") as f:
+            _config = yaml.safe_load(f)
+    else:
+        # Fallback to empty config
+        _config = {"templates": {}, "entity_patterns": {}, "default_templates": {}}
+        print(f"[Search Planner] Warning: {_CONFIG_PATH} not found, using empty config")
+
+    return _config
+
+
+def _detect_entity_type(entity: str) -> str:
+    """Detect entity type based on patterns from config."""
+    config = _load_config()
+    patterns = config.get("entity_patterns", {})
+    entity_lower = entity.lower()
+
+    for entity_type, type_patterns in patterns.items():
+        for pattern in type_patterns:
+            if pattern.lower() in entity_lower:
+                return entity_type
+
+    return "Method"  # Default fallback
+
+
+def _select_template(intent: str, entity_types: list[str]) -> Optional[dict]:
+    """Select appropriate Cypher template based on intent and entity types."""
+    config = _load_config()
+    templates = config.get("templates", {})
+    defaults = config.get("default_templates", {})
+
+    # Try to find exact match for intent + entity types
+    for template_key, template in templates.items():
+        template_intents = template.get("intent", [])
+        if isinstance(template_intents, str):
+            template_intents = [template_intents]
+
+        if intent not in template_intents:
+            continue
+
+        template_entity_types = template.get("entity_types", [])
+
+        # Match entity types (order matters for comparison)
+        if len(entity_types) == len(template_entity_types):
+            if all(et in template_entity_types for et in entity_types):
+                return {"key": template_key, **template}
+
+    # Try default template for intent
+    if intent in defaults:
+        default_key = defaults[intent]
+        if default_key in templates:
+            return {"key": default_key, **templates[default_key]}
+
+    return None
 
 
 def plan_search(state: AgentState) -> AgentState:
@@ -109,23 +92,52 @@ def plan_search(state: AgentState) -> AgentState:
 
     print(f"[Search Planner] Planning for intent: {intent}, entities: {entities}")
 
-    # Select appropriate Cypher template and parameters
-    if intent == "lookup":
-        strategy = _plan_lookup(entities)
-    elif intent == "path":
-        strategy = _plan_path(entities)
-    elif intent == "comparison":
-        strategy = _plan_comparison(entities)
-    elif intent == "expansion":
-        # Expansion requires web search (Phase 3)
-        strategy = {
+    # Handle intents that don't need graph queries
+    if intent == "out_of_scope":
+        state["search_strategy"] = {
             "retrieval_type": "none",
-            "message": "This query requires web search, which will be implemented in Phase 3.",
+            "message": "Query is out of scope for this knowledge graph.",
+        }
+        return state
+
+    if intent == "expansion":
+        strategy = {
+            "retrieval_type": "vector_first",
+            "cypher_template": None,
+            "parameters": {},
+            "message": "Expansion query - will use vector + web search.",
+        }
+        strategy = _maybe_add_vector_search(strategy, intent, entities, state.get("user_query", ""))
+        state["search_strategy"] = strategy
+        return state
+
+    # Detect entity types
+    entity_types = [_detect_entity_type(e) for e in entities] if entities else []
+
+    # Select template based on intent and entity types
+    template = _select_template(intent, entity_types)
+
+    if template:
+        # Build parameters from entities
+        params = {}
+        param_names = template.get("params", [])
+        for i, param_name in enumerate(param_names):
+            if i < len(entities):
+                params[param_name] = entities[i]
+
+        strategy = {
+            "retrieval_type": "graph_only",
+            "cypher_template": template.get("cypher"),
+            "parameters": params,
+            "template_key": template.get("key"),
         }
     else:
+        # No matching template found
         strategy = {
-            "retrieval_type": "none",
-            "error": f"Unknown intent: {intent}",
+            "retrieval_type": "graph_only",
+            "cypher_template": None,
+            "parameters": {},
+            "error": f"No template found for intent={intent}, entity_types={entity_types}",
         }
 
     # Decide whether to add vector search
@@ -133,99 +145,6 @@ def plan_search(state: AgentState) -> AgentState:
 
     state["search_strategy"] = strategy
     return state
-
-
-def _plan_lookup(entities: list[str]) -> dict:
-    """Plan lookup query for a single entity."""
-    if not entities:
-        return {
-            "retrieval_type": "graph_only",
-            "cypher_template": None,
-            "parameters": {},
-            "error": "No entities found for lookup",
-        }
-
-    # Use first entity
-    entity = entities[0]
-
-    # Determine entity type based on heuristics
-    entity_lower = entity.lower()
-
-    # Check if it's a known principle
-    principles = ["perception", "memory", "planning", "reasoning", "tool use",
-                  "reflection", "grounding", "learning", "multi-agent", "guardrails", "tracing"]
-    if any(p in entity_lower for p in principles):
-        template_key = "lookup_principle"
-    # Check if it's likely an implementation
-    elif any(impl in entity_lower for impl in ["langchain", "crewai", "autogen", "langgraph", "semantic kernel"]):
-        template_key = "lookup_implementation"
-    # Default to method lookup
-    else:
-        template_key = "lookup_method"
-
-    return {
-        "retrieval_type": "graph_only",
-        "cypher_template": CYPHER_TEMPLATES[template_key],
-        "parameters": {"entity": entity},
-        "template_key": template_key,
-    }
-
-
-def _plan_path(entities: list[str]) -> dict:
-    """Plan path query for relationship exploration."""
-    if not entities:
-        return {
-            "retrieval_type": "graph_only",
-            "cypher_template": None,
-            "parameters": {},
-            "error": "No entities found for path query",
-        }
-
-    entity = entities[0]
-    entity_lower = entity.lower()
-
-    # Determine path direction based on entity type
-    principles = ["perception", "memory", "planning", "reasoning", "tool use",
-                  "reflection", "grounding", "learning", "multi-agent", "guardrails", "tracing"]
-    implementations = ["langchain", "crewai", "autogen", "langgraph", "semantic kernel"]
-
-    if any(p in entity_lower for p in principles):
-        # Principle → Methods → Implementations
-        template_key = "path_principle_to_methods"
-    elif any(impl in entity_lower for impl in implementations):
-        # Implementation → Methods → Principles
-        template_key = "path_implementation_to_principles"
-    else:
-        # Assume method → Implementations
-        template_key = "path_method_to_implementations"
-
-    return {
-        "retrieval_type": "graph_only",
-        "cypher_template": CYPHER_TEMPLATES[template_key],
-        "parameters": {"entity": entity},
-        "template_key": template_key,
-    }
-
-
-def _plan_comparison(entities: list[str]) -> dict:
-    """Plan comparison query for two entities."""
-    if len(entities) < 2:
-        return {
-            "retrieval_type": "graph_only",
-            "cypher_template": None,
-            "parameters": {},
-            "error": "Comparison requires at least 2 entities",
-        }
-
-    return {
-        "retrieval_type": "graph_only",
-        "cypher_template": CYPHER_TEMPLATES["comparison"],
-        "parameters": {
-            "entity1": entities[0],
-            "entity2": entities[1],
-        },
-        "template_key": "comparison",
-    }
 
 
 def _maybe_add_vector_search(
@@ -236,7 +155,7 @@ def _maybe_add_vector_search(
     Rules:
     - expansion intent → vector_first (graph has nothing, try semantics)
     - no cypher template (failed match) → vector_first
-    - lookup/path with entities → hybrid (graph + vector)
+    - lookup/path/exploration with entities → hybrid (graph + vector)
     - otherwise → leave as graph_only
     """
     retrieval_type = strategy.get("retrieval_type", "graph_only")
@@ -261,7 +180,7 @@ def _maybe_add_vector_search(
         strategy["retrieval_type"] = "vector_first"
         strategy["vector_query"] = vector_query
         print(f"[Search Planner] Strategy: vector_first (no Cypher template)")
-    elif intent in ("lookup", "path") and strategy.get("cypher_template"):
+    elif intent in ("lookup", "path", "exploration", "path_trace") and strategy.get("cypher_template"):
         strategy["retrieval_type"] = "hybrid"
         strategy["vector_query"] = vector_query
         print(f"[Search Planner] Strategy: hybrid (graph + vector)")
