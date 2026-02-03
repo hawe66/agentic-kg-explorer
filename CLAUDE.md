@@ -159,10 +159,10 @@ agentic-ai-kg/
 │   └── validation_queries.cypher ← 검증 쿼리
 ├── src/
 │   ├── graph/             ← Neo4j 클라이언트 & 스키마
-│   ├── agents/            ← LangGraph 에이전트 파이프라인 (✅ 기본 구현)
+│   ├── agents/            ← LangGraph 에이전트 파이프라인 (✅ 구현)
 │   │   ├── __init__.py    ← 모듈 exports
-│   │   ├── state.py       ← AgentState TypedDict (12 fields, incl. vector_results)
-│   │   ├── graph.py       ← LangGraph 파이프라인 (linear 4-node)
+│   │   ├── state.py       ← AgentState TypedDict (14 fields, incl. vector/web results)
+│   │   ├── graph.py       ← LangGraph 파이프라인 (conditional 5-node)
 │   │   ├── README.md      ← 에이전트 아키텍처 문서
 │   │   ├── providers/     ← LLM provider 추상화 (✅ 구현)
 │   │   │   ├── base.py    ← LLMProvider ABC
@@ -174,12 +174,14 @@ agentic-ai-kg/
 │   │       ├── intent_classifier.py  ← 쿼리 의도 분류
 │   │       ├── search_planner.py     ← Cypher 템플릿 선택 (7개)
 │   │       ├── graph_retriever.py    ← Neo4j 쿼리 실행
+│   │       ├── web_search.py         ← Tavily 웹 검색 (✅ Phase 3)
 │   │       └── synthesizer.py        ← 자연어 답변 생성
 │   ├── retrieval/         ← 벡터 검색 모듈 (✅ 구현)
 │   │   ├── embedder.py    ← OpenAI embedding client
 │   │   ├── vector_store.py ← ChromaDB wrapper (VectorStore, VectorSearchResult)
 │   │   └── __init__.py    ← 모듈 exports
-│   └── api/               ← FastAPI 엔드포인트
+│   ├── api/               ← FastAPI 엔드포인트 (✅ 구현)
+│   └── ui/                ← Streamlit Chat UI (✅ 구현)
 ├── scripts/
 │   ├── load_sample_data.py
 │   ├── test_queries.py
@@ -199,7 +201,7 @@ agentic-ai-kg/
 - [x] Seed 데이터
 - [x] 수동 데이터 검증
 
-### Phase 2: 핵심 플로우 🔧 진행 중
+### Phase 2: 핵심 플로우 ✅ 완료
 - [x] LangGraph 기본 구조 (4-node linear pipeline)
 - [x] 에이전트 테스트 스크립트 (`scripts/test_agent.py`)
 - [x] LLM provider/model 추상화 (OpenAI, Anthropic, Gemini 지원)
@@ -207,11 +209,11 @@ agentic-ai-kg/
 - [ ] Provider config 외부화 (YAML 등으로 provider 선언만으로 전환 가능하게)
 - [x] 벡터 검색 연동 (ChromaDB + OpenAI embeddings)
 - [x] FastAPI REST endpoints (POST /query, GET /health, /stats, /graph/principles)
-- [ ] Streamlit UI
+- [x] Streamlit Chat UI
 
-### Phase 3: 확장 기능
-- [ ] Web Search Expander
-- [ ] 유저 승인 UI
+### Phase 3: 확장 기능 🔧 진행 중
+- [x] Web Search Expander (Tavily API, conditional pipeline)
+- [ ] 유저 승인 UI (웹 결과 → KG 추가)
 - [ ] 그래프 시각화
 
 ### Phase 4: Critic Agent

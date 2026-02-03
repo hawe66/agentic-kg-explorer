@@ -289,11 +289,73 @@ poetry run uvicorn src.api.app:app --reload --port 8000
 
 ---
 
+## [0.4.0] - 2026-02-03
+
+### Phase 3: Web Search Expander
+
+#### Added
+
+**Web Search Node** (`src/agents/nodes/web_search.py`)
+- Tavily API integration for web search fallback
+- Triggers on `expansion` intent OR empty KG/vector results
+- Returns top 5 results with title, URL, content, score
+
+**Conditional Pipeline Flow** (`src/agents/graph.py`)
+- Changed from linear to conditional after `retrieve_from_graph`
+- `_should_web_search()` routing function
+- Web search node only runs when needed (cost saving)
+
+**State Extension** (`src/agents/state.py`)
+- Added `web_results: Optional[list[dict]]` — Tavily search results
+- Added `web_query: Optional[str]` — query sent to Tavily
+
+**Synthesizer Updates** (`src/agents/nodes/synthesizer.py`)
+- `_format_web_results()` for LLM prompt inclusion
+- `_extract_web_sources()` for source attribution
+- Sources now include both KG and Web sources (type: "Web")
+- Confidence base 0.5 for web-only results
+
+**API Updates** (`src/api/`)
+- `WebResultItem` schema: title, url, content, score
+- `QueryResponse` extended: `web_results`, `web_query` fields
+- Routes updated to map web results to response
+
+**Dependencies**
+- Added `tavily-python = "^0.5.0"` to `pyproject.toml`
+
+#### Architecture
+
+```
+classify_intent → plan_search → retrieve_from_graph
+                                        ↓
+                              [conditional: has results?]
+                                   ↓            ↓
+                                 YES           NO (or expansion)
+                                   ↓            ↓
+                                 skip      web_search
+                                   ↓            ↓
+                                   └────────────┘
+                                         ↓
+                                  synthesize_answer
+```
+
+#### Usage
+
+```bash
+# Requires TAVILY_API_KEY in .env
+poetry run python scripts/test_agent.py --query "What are the latest agent frameworks in 2026?"
+```
+
+#### Graceful Fallback
+- If `TAVILY_API_KEY` not set → web search skipped, returns KG/vector results only
+- If all sources empty → returns "couldn't find information" message
+
+---
+
 ## [Unreleased]
 
-### Phase 3: Expansion (Planned)
-- [ ] Web Search Expander agent
-- [ ] User approval workflow UI
+### Phase 3b: Expansion (Planned)
+- [ ] User approval workflow UI for adding web results to KG
 - [ ] Graph visualization
 
 ### Phase 4: Critic Agent (Planned)

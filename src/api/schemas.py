@@ -34,6 +34,15 @@ class KgResultItem(BaseModel):
         extra = "allow"
 
 
+class WebResultItem(BaseModel):
+    """Web search result from Tavily."""
+
+    title: str
+    url: str
+    content: str
+    score: float
+
+
 class QueryResponse(BaseModel):
     answer: str | None
     intent: str | None
@@ -41,6 +50,8 @@ class QueryResponse(BaseModel):
     confidence: float | None
     sources: list[SourceItem]
     vector_results: list[VectorResultItem]
+    web_results: list[WebResultItem]
+    web_query: str | None
     cypher_executed: list[str]
     kg_results: list[KgResultItem]
     error: str | None

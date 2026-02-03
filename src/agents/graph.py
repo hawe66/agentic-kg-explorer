@@ -7,15 +7,46 @@ from .nodes import (
     classify_intent,
     plan_search,
     retrieve_from_graph,
+    web_search,
     synthesize_answer,
 )
+
+
+def _should_web_search(state: AgentState) -> str:
+    """Decide whether to run web search after graph retrieval.
+
+    Returns "web_search" if:
+    - intent is "expansion", OR
+    - both kg_results and vector_results are empty
+
+    Otherwise returns "synthesize" to skip web search.
+    """
+    intent = state.get("intent")
+    kg_results = state.get("kg_results") or []
+    vector_results = state.get("vector_results") or []
+
+    has_results = bool(kg_results) or bool(vector_results)
+
+    if intent == "expansion" or not has_results:
+        return "web_search"
+    return "synthesize"
 
 
 def create_agent_graph() -> StateGraph:
     """Create the LangGraph pipeline for KG exploration.
 
     The pipeline flows as follows:
-    User Query → Intent Classification → Search Planning → Graph Retrieval → Answer Synthesis
+    User Query → Intent Classification → Search Planning → Graph Retrieval
+                                                               ↓
+                                                    [conditional: has results?]
+                                                         ↓            ↓
+                                                       YES           NO (or expansion)
+                                                         ↓            ↓
+                                                       skip      Web Search
+                                                         ↓            ↓
+                                                         └────────────┘
+                                                               ↓
+                                                        Answer Synthesis
 
     Returns:
         Compiled StateGraph ready for execution
@@ -27,13 +58,26 @@ def create_agent_graph() -> StateGraph:
     workflow.add_node("classify_intent", classify_intent)
     workflow.add_node("plan_search", plan_search)
     workflow.add_node("retrieve_from_graph", retrieve_from_graph)
+    workflow.add_node("web_search", web_search)
     workflow.add_node("synthesize_answer", synthesize_answer)
 
-    # Define edges (linear flow for Phase 2)
+    # Define edges
     workflow.set_entry_point("classify_intent")
     workflow.add_edge("classify_intent", "plan_search")
     workflow.add_edge("plan_search", "retrieve_from_graph")
-    workflow.add_edge("retrieve_from_graph", "synthesize_answer")
+
+    # Conditional: after retrieval → web_search OR synthesize
+    workflow.add_conditional_edges(
+        "retrieve_from_graph",
+        _should_web_search,
+        {
+            "web_search": "web_search",
+            "synthesize": "synthesize_answer",
+        },
+    )
+
+    # web_search always goes to synthesize
+    workflow.add_edge("web_search", "synthesize_answer")
     workflow.add_edge("synthesize_answer", END)
 
     # Compile graph
@@ -64,6 +108,8 @@ def run_agent(query: str) -> AgentState:
         "sources": None,
         "confidence": None,
         "vector_results": None,
+        "web_results": None,
+        "web_query": None,
         "error": None,
     }
 

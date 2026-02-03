@@ -20,7 +20,8 @@ Query Intent: {intent}
 Knowledge Graph Results:
 {kg_results}
 {vector_section}
-Based on the knowledge graph results above, provide a clear, concise answer to the user's question.
+{web_section}
+Based on the results above, provide a clear, concise answer to the user's question.
 
 Guidelines:
 1. If results are empty or insufficient, say "I couldn't find information about that in the knowledge graph."
@@ -46,8 +47,9 @@ def synthesize_answer(state: AgentState) -> AgentState:
     intent = state.get("intent")
     kg_results = state.get("kg_results", [])
     vector_results = state.get("vector_results") or []
+    web_results = state.get("web_results") or []
 
-    has_any_results = bool(kg_results) or bool(vector_results)
+    has_any_results = bool(kg_results) or bool(vector_results) or bool(web_results)
 
     # Handle error cases only if no results available
     if state.get("error") and not has_any_results:
@@ -56,25 +58,14 @@ def synthesize_answer(state: AgentState) -> AgentState:
         state["confidence"] = 0.0
         return state
 
-    # Handle expansion intent — now possible with vector search
-    if intent == "expansion" and not has_any_results:
-        state["answer"] = (
-            "This question requires information beyond the current knowledge graph. "
-            "Web search expansion will be available in Phase 3."
-        )
-        state["sources"] = []
-        state["confidence"] = 0.0
-        return state
-
-    # Handle empty results
+    # Handle empty results (no KG, no vector, no web)
     if not has_any_results:
-        state["answer"] = "I couldn't find information about that in the knowledge graph."
+        state["answer"] = "I couldn't find information about that in the knowledge graph or web search."
         state["sources"] = []
         state["confidence"] = 0.1
         return state
 
-    total = len(kg_results) + len(vector_results)
-    print(f"[Synthesizer] Synthesizing answer from {len(kg_results)} graph + {len(vector_results)} vector results")
+    print(f"[Synthesizer] Synthesizing answer from {len(kg_results)} graph + {len(vector_results)} vector + {len(web_results)} web results")
 
     provider = get_provider()
     if provider is None:
@@ -86,6 +77,7 @@ def synthesize_answer(state: AgentState) -> AgentState:
     try:
         formatted_results = _format_results_for_llm(kg_results)
         vector_section = _format_vector_results(vector_results)
+        web_section = _format_web_results(web_results)
 
         answer = provider.generate(
             SYNTHESIS_PROMPT.format(
@@ -93,12 +85,13 @@ def synthesize_answer(state: AgentState) -> AgentState:
                 intent=intent,
                 kg_results=formatted_results,
                 vector_section=vector_section,
+                web_section=web_section,
             ),
             max_tokens=provider.max_synthesize_tokens,
         )
 
-        sources = _extract_sources(kg_results)
-        confidence = _calculate_confidence(kg_results, intent, vector_results)
+        sources = _extract_sources(kg_results) + _extract_web_sources(web_results)
+        confidence = _calculate_confidence(kg_results, intent, vector_results, web_results)
 
         state["answer"] = answer
         state["sources"] = sources
@@ -109,7 +102,7 @@ def synthesize_answer(state: AgentState) -> AgentState:
     except Exception as e:
         print(f"[Synthesizer] Error: {e}")
         state["answer"] = _simple_format_results(kg_results, intent)
-        state["sources"] = _extract_sources(kg_results)
+        state["sources"] = _extract_sources(kg_results) + _extract_web_sources(web_results)
         state["confidence"] = 0.5
 
     return state
@@ -193,6 +186,23 @@ def _extract_sources(results: list[dict]) -> list[dict]:
     return sources
 
 
+def _extract_web_sources(web_results: list[dict]) -> list[dict]:
+    """Extract web search results as sources for citation."""
+    if not web_results:
+        return []
+
+    sources = []
+    for r in web_results:
+        url = r.get("url", "")
+        if url:
+            sources.append({
+                "type": "Web",
+                "id": url,
+                "name": r.get("title", url),
+            })
+    return sources
+
+
 def _format_vector_results(vector_results: list[dict]) -> str:
     """Format vector search results for inclusion in the LLM prompt."""
     if not vector_results:
@@ -211,9 +221,30 @@ def _format_vector_results(vector_results: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def _calculate_confidence(results: list[dict], intent: str, vector_results: list[dict] | None = None) -> float:
+def _format_web_results(web_results: list[dict]) -> str:
+    """Format web search results for LLM prompt."""
+    if not web_results:
+        return ""
+
+    lines = ["\nWeb Search Results:"]
+    for r in web_results:
+        title = r.get("title", "Untitled")
+        url = r.get("url", "")
+        content = r.get("content", "")[:300]  # truncate
+        score = r.get("score", 0)
+        lines.append(f"- [{title}]({url}) (score: {score:.2f})")
+        lines.append(f"  {content}...")
+    return "\n".join(lines)
+
+
+def _calculate_confidence(
+    results: list[dict],
+    intent: str,
+    vector_results: list[dict] | None = None,
+    web_results: list[dict] | None = None,
+) -> float:
     """Calculate confidence score based on results and intent."""
-    if not results and not vector_results:
+    if not results and not vector_results and not web_results:
         return 0.0
 
     # Base confidence on graph result count
@@ -227,6 +258,9 @@ def _calculate_confidence(results: list[dict], intent: str, vector_results: list
     elif vector_results:
         # Only vector results available
         base_confidence = 0.55
+    elif web_results:
+        # Only web results available (less reliable than KG)
+        base_confidence = 0.5
     else:
         base_confidence = 0.0
 

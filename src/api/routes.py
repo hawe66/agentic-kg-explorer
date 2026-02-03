@@ -16,6 +16,7 @@ from .schemas import (
     SourceItem,
     StatsResponse,
     VectorResultItem,
+    WebResultItem,
     KgResultItem,
 )
 
@@ -78,6 +79,10 @@ def query_agent(request: QueryRequest):
         vector_results=[
             VectorResultItem(**v) for v in (result.get("vector_results") or [])
         ],
+        web_results=[
+            WebResultItem(**w) for w in (result.get("web_results") or [])
+        ],
+        web_query=result.get("web_query"),
         cypher_executed=result.get("cypher_executed") or [],
         kg_results=[
             KgResultItem(**k) for k in (result.get("kg_results") or [])

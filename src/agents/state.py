@@ -63,6 +63,16 @@ class AgentState(TypedDict):
     [{"node_id": "m:react", "node_label": "Method", "text": "...", "field": "description", "score": 0.87}, ...]
     """
 
+    # ===== Web Search =====
+    web_results: Optional[list[dict]]
+    """
+    Web search results from Tavily:
+    [{"title": "...", "url": "...", "content": "...", "score": 0.95}, ...]
+    """
+
+    web_query: Optional[str]
+    """Query string sent to Tavily (may differ from user_query)"""
+
     # ===== Error Handling =====
     error: Optional[str]
     """Error message if any step fails"""

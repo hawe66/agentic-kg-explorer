@@ -79,11 +79,7 @@ def get_provider() -> Optional[LLMProvider]:
     primary_name = (settings.llm_provider or "").lower()
     primary_entry = registry.get(primary_name)
     print(f"[Provider Router] provider={primary_name!r}")
-    if primary_entry is None:
-        print("[Provider Router] provider not found in config/providers.yaml")
-    else:
-        print("[Provider Router] provider config:")
-        pprint.pprint(primary_entry)
+    print(f"[Provider Router] provider model={primary_entry.get('default_model')!r}")
 
     # --- primary provider ---
     provider = _build_provider(settings.llm_provider, settings, registry)
