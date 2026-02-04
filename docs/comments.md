@@ -566,17 +566,29 @@ def link_document_to_kg(doc_id: str, doc_content: str) -> list[dict]:
 - [ ] ~~Critic 노드 추가 (데이터 충분성 판단)~~ → Moved to Phase 4
 - [x] Streamlit UI 개선 (example 자동실행, 폰트, floating panel)
 
-### P2 (중기)
-- [ ] 범용 문서 크롤러 스크립트
-- [ ] Local docs 업로드 UI
-- [ ] Document → KG 자동 연결 (link_document_to_kg)
+### P2 (중기) → Phase 4와 통합
+- [ ] 범용 문서 크롤러 스크립트 → `src/ingestion/crawler.py`
+- [ ] Local docs 업로드 UI → Streamlit expander
+- [ ] Document → KG 자동 연결 → `src/ingestion/linker.py` (LLM-based)
 - [x] ~~KG 관리용 Cypher (coverage_check, aggregation)~~ → Included in cypher_templates.yaml
 - [x] ~~Graph visualization~~ → `streamlit-agraph` in `src/ui/app.py` (toggle, node colors, overview mode)
 
-### Phase 4 (Critic Agent)
-- [ ] EvaluationCriteria nodes derived from Principles
-- [ ] Evaluation logic with multi-dimensional scoring
-- [ ] Guideline versioning
-- [ ] Human-in-the-loop approval gates
+### Phase 4 (Critic Agent + P2) 🔧 In Progress
+See: `docs/phase4-critic-agent-design.md`
+
+**Critic Agent:**
+- [ ] EvaluationCriteria schema + seed data (15 criteria from 11 Principles)
+- [ ] CriticEvaluator class (`src/critic/evaluator.py`)
+- [ ] LLM-based scoring per criterion
+- [ ] Post-pipeline evaluation hook (async, non-blocking)
+- [ ] `/evaluations` API endpoint
+
+**Document Pipeline (P2):**
+- [ ] DocumentCrawler (URL + PDF via PyMuPDF)
+- [ ] DocumentLinker (LLM extracts PROPOSES/DESCRIBES/USES relationships)
+- [ ] Streamlit upload widget + approval UI
+
+**Guideline Versioning (Phase 5 prep):**
+- [ ] PromptVersion schema (placeholder for Phase 5)
 
 추가 질문이나 특정 항목 더 상세하게 보고 싶으시면 말씀해주세요!

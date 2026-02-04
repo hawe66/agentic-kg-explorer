@@ -157,3 +157,50 @@ FOR (c:DocumentChunk) ON EACH [c.content];
 //   `vector.dimensions`: 1536,
 //   `vector.similarity_function`: 'cosine'
 // }};
+
+// ------------------------------------------------------------
+// 5. Phase 4: Critic Agent Schema
+// ------------------------------------------------------------
+
+// EvaluationCriteria: 평가 기준 (Principle에서 도출)
+CREATE CONSTRAINT ec_id IF NOT EXISTS
+FOR (ec:EvaluationCriteria) REQUIRE ec.id IS UNIQUE;
+
+CREATE INDEX ec_principle IF NOT EXISTS
+FOR (ec:EvaluationCriteria) ON (ec.principle_id);
+
+CREATE INDEX ec_agent IF NOT EXISTS
+FOR (ec:EvaluationCriteria) ON (ec.agent_target);
+
+CREATE INDEX ec_active IF NOT EXISTS
+FOR (ec:EvaluationCriteria) ON (ec.is_active);
+
+// Evaluation: 개별 평가 결과
+CREATE CONSTRAINT eval_id IF NOT EXISTS
+FOR (e:Evaluation) REQUIRE e.id IS UNIQUE;
+
+CREATE INDEX eval_agent IF NOT EXISTS
+FOR (e:Evaluation) ON (e.agent_name);
+
+CREATE INDEX eval_created IF NOT EXISTS
+FOR (e:Evaluation) ON (e.created_at);
+
+CREATE INDEX eval_score IF NOT EXISTS
+FOR (e:Evaluation) ON (e.composite_score);
+
+// FailurePattern: 반복 실패 패턴 (Phase 5 준비)
+CREATE CONSTRAINT fp_id IF NOT EXISTS
+FOR (fp:FailurePattern) REQUIRE fp.id IS UNIQUE;
+
+CREATE INDEX fp_type IF NOT EXISTS
+FOR (fp:FailurePattern) ON (fp.pattern_type);
+
+// PromptVersion: 프롬프트 버전 (Phase 5 준비)
+CREATE CONSTRAINT pv_id IF NOT EXISTS
+FOR (pv:PromptVersion) REQUIRE pv.id IS UNIQUE;
+
+CREATE INDEX pv_agent IF NOT EXISTS
+FOR (pv:PromptVersion) ON (pv.agent_name);
+
+CREATE INDEX pv_active IF NOT EXISTS
+FOR (pv:PromptVersion) ON (pv.is_active);

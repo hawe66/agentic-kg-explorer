@@ -84,11 +84,12 @@ def create_agent_graph() -> StateGraph:
     return workflow.compile()
 
 
-def run_agent(query: str) -> AgentState:
+def run_agent(query: str, evaluate: bool = False) -> AgentState:
     """Run the agent pipeline on a user query.
 
     Args:
         query: User question about the knowledge graph
+        evaluate: If True, run critic evaluation after pipeline (default: False)
 
     Returns:
         Final state with answer and sources
@@ -120,7 +121,37 @@ def run_agent(query: str) -> AgentState:
 
     final_state = graph.invoke(initial_state)
 
+    # Post-pipeline evaluation (if enabled)
+    if evaluate:
+        _run_evaluation(final_state)
+
     return final_state
+
+
+def _run_evaluation(state: AgentState) -> None:
+    """Run critic evaluation on pipeline results (async-friendly hook).
+
+    Args:
+        state: Final pipeline state to evaluate.
+    """
+    try:
+        from src.critic.evaluator import get_evaluator
+
+        evaluator = get_evaluator()
+        evaluations = evaluator.evaluate_pipeline(state)
+
+        if evaluations:
+            print(f"\n[Critic] Evaluated {len(evaluations)} agents:")
+            for ev in evaluations:
+                print(f"  - {ev.agent_name}: {ev.composite_score:.2f}")
+                if ev.feedback:
+                    print(f"    Feedback: {ev.feedback[:100]}...")
+
+                # Save to Neo4j (optional)
+                # evaluator.save_to_neo4j(ev)
+
+    except Exception as e:
+        print(f"[Critic] Evaluation failed: {e}")
 
 
 if __name__ == "__main__":

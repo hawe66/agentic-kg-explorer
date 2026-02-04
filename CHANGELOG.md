@@ -527,13 +527,110 @@ poetry run python scripts/test_agent.py --query "What are the latest agent frame
 **Dependencies**
 - Added `streamlit-agraph` to `pyproject.toml`
 
-#### Known Issues
-- Graph visualization shows "No graph data available" even when Neo4j is connected — needs investigation (node/relationship serialization from Neo4j driver may differ from expected format)
+#### Fixed
+- Graph visualization now works correctly — added `_serialize_neo4j_results()` helper to convert raw Neo4j Node/Relationship objects to plain dicts before rendering
 
-### Phase 4: Critic Agent (Planned)
-- [ ] Evaluation principles and methods
-- [ ] Evaluation logic implementation
-- [ ] Guideline versioning system
+### Phase 4: Critic Agent ✅ Implemented
+
+#### Added
+
+**Evaluation Schema** (`neo4j/schema.cypher`)
+- EvaluationCriteria, Evaluation constraints and indexes
+- FailurePattern, PromptVersion schema (Phase 5 preparation)
+- DERIVED_FROM relationship (EvaluationCriteria → Principle)
+
+**Critic Module** (`src/critic/`)
+- `criteria.py` — Load evaluation criteria from YAML, caching, settings
+- `scorer.py` — LLM-based scoring with rubrics, heuristic fallback
+- `evaluator.py` — CriticEvaluator class with `evaluate()`, `evaluate_pipeline()`, `save_to_neo4j()`
+- `__init__.py` — Module exports
+
+**Evaluation Criteria Configuration** (`config/evaluation_criteria.yaml`)
+- 15 criteria derived from 11 Principles:
+  - Synthesizer (7): answer-relevance, source-citation, factual-accuracy, reasoning-steps, completeness, conciseness, safety
+  - Intent Classifier (3): intent-accuracy, entity-extraction, scope-detection
+  - Search Planner (3): template-selection, retrieval-mode, parameter-binding
+  - Graph Retriever (2): query-execution, result-relevance
+- Scoring rubrics with 0.0-1.0 scale
+- Configurable weights per criterion
+
+**Seed Data** (`neo4j/seed_evaluation.cypher`)
+- MERGE statements for 15 EvaluationCriteria nodes
+- Creates DERIVED_FROM relationships to Principles
+
+**Pipeline Integration** (`src/agents/graph.py`)
+- Added `evaluate: bool = False` parameter to `run_agent()`
+- Post-pipeline evaluation hook (non-blocking)
+- `_run_evaluation()` helper function
+
+**API Endpoints** (`src/api/routes.py`)
+- `GET /evaluations` — Query evaluation results (filter by agent, min_score, limit)
+- `GET /evaluation-criteria` — List all criteria (filter by agent)
+
+**Streamlit UI** (`src/ui/app.py`)
+- "Enable Critic Evaluation" toggle in sidebar
+- Evaluation scores displayed in response expander
+- Per-criterion score breakdown
+- Color-coded composite scores (green/orange/red)
+
+**Scripts**
+- `scripts/seed_evaluation_criteria.py` — Seed EvaluationCriteria to Neo4j
+
+#### Architecture
+
+```
+Pipeline Execution → synthesize_answer
+                            ↓
+                    [if evaluate=True]
+                            ↓
+                    CriticEvaluator.evaluate_pipeline()
+                            ↓
+                    [for each agent: synthesizer, intent_classifier,
+                     search_planner, graph_retriever]
+                            ↓
+                    score_criterion() → composite_score
+                            ↓
+                    [optional: save_to_neo4j()]
+```
+
+### Phase 4 + P2: Document Pipeline ✅ Implemented
+
+#### Added
+
+**Document Ingestion Module** (`src/ingestion/`)
+- `crawler.py` — DocumentCrawler for URL and PDF extraction
+  - `crawl_url()`: BeautifulSoup-based web scraping
+  - `crawl_pdf()`: PyMuPDF text extraction
+  - Auto-detection of doc_type (paper, article, documentation)
+  - Year and author extraction heuristics
+- `chunker.py` — DocumentChunker for embedding
+  - Paragraph and sentence-based chunking
+  - Configurable chunk_size, overlap, min_chunk_size
+  - Chunk dataclass with metadata
+- `linker.py` — DocumentLinker for KG relationship extraction
+  - LLM-based entity extraction (Methods, Implementations mentioned)
+  - Relationship types: PROPOSES, EVALUATES, DESCRIBES, USES, MENTIONS
+  - Heuristic fallback when LLM unavailable
+  - `save_document_to_kg()` for Neo4j persistence
+
+**CLI Script** (`scripts/ingest_document.py`)
+- `--url URL` or `--pdf PATH` input
+- `--approve-all` for batch processing
+- `--dry-run` preview mode
+- `--embed` for ChromaDB chunk embedding
+- Interactive link approval
+
+**Streamlit Upload UI** (`src/ui/app.py`)
+- "Add Document" expander in sidebar
+- PDF upload and URL input tabs
+- Document processing panel showing:
+  - Crawl results (title, type, content length)
+  - Proposed KG links with checkboxes
+  - Confidence scores
+- "Save to KG" with optional embedding
+
+**Dependencies** (`pyproject.toml`)
+- Added `beautifulsoup4 = "^4.12.0"` for URL crawling
 
 ### Phase 5: Prompt Optimizer (Planned)
 - [ ] Failure Analyzer

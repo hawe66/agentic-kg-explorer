@@ -151,24 +151,27 @@ granularity: atomic | composite
 ```
 agentic-ai-kg/
 ├── CLAUDE.md              ← 이 파일 (컨텍스트)
-├── config/                ← 설정 파일 (✅ P1)
+├── config/                ← 설정 파일 (✅ P1, Phase 4)
 │   ├── intents.yaml       ← 11개 intent 정의 + examples
 │   ├── cypher_templates.yaml ← 20+ Cypher 템플릿 (intent별)
-│   └── providers.yaml     ← LLM/Embedding provider 설정
+│   ├── providers.yaml     ← LLM/Embedding provider 설정
+│   └── evaluation_criteria.yaml ← 15개 평가 기준 (Phase 4)
 ├── data/
 │   ├── entity_catalog.json ← KG 엔티티 목록 (generated)
 │   └── embedding_hashes.json ← 임베딩 변경 추적
 ├── docs/
-│   └── schema.md          ← 전체 스키마 정의서
+│   ├── schema.md          ← 전체 스키마 정의서
+│   └── phase4-critic-agent-design.md ← Critic Agent 설계 문서
 ├── neo4j/
-│   ├── schema.cypher      ← 제약조건/인덱스
+│   ├── schema.cypher      ← 제약조건/인덱스 (Phase 4 schema 포함)
 │   ├── seed_data.cypher   ← 초기 데이터 (11 Principles, 33 Methods, 16 Implementations)
+│   ├── seed_evaluation.cypher ← 평가 기준 seed 데이터 (Phase 4)
 │   └── validation_queries.cypher ← 검증 쿼리
 ├── src/
 │   ├── graph/             ← Neo4j 클라이언트 & 스키마
 │   ├── agents/            ← LangGraph 에이전트 파이프라인 (✅ 구현)
 │   │   ├── state.py       ← AgentState (intent: str로 변경, 동적 지원)
-│   │   ├── graph.py       ← LangGraph 파이프라인 (conditional 5-node)
+│   │   ├── graph.py       ← LangGraph 파이프라인 (conditional 5-node + evaluate hook)
 │   │   ├── providers/     ← LLM provider 추상화
 │   │   └── nodes/
 │   │       ├── intent_classifier.py  ← YAML 기반 의도 분류 (11 intents)
@@ -176,16 +179,25 @@ agentic-ai-kg/
 │   │       ├── graph_retriever.py    ← Neo4j + ChromaDB 쿼리
 │   │       ├── web_search.py         ← Tavily 웹 검색
 │   │       └── synthesizer.py        ← 다차원 confidence 답변 생성
+│   ├── critic/            ← Critic Agent 모듈 (✅ Phase 4)
+│   │   ├── criteria.py    ← YAML에서 평가 기준 로드
+│   │   ├── scorer.py      ← LLM 기반 점수 산정
+│   │   └── evaluator.py   ← CriticEvaluator 오케스트레이션
+│   ├── ingestion/         ← 문서 수집 모듈 (✅ P2)
+│   │   ├── crawler.py     ← URL/PDF 텍스트 추출
+│   │   ├── chunker.py     ← 문서 청킹
+│   │   └── linker.py      ← Document → KG 관계 추출
 │   ├── retrieval/         ← 벡터 검색 모듈
 │   │   ├── providers/     ← Embedding provider 추상화
 │   │   └── vector_store.py ← ChromaDB wrapper
-│   ├── api/               ← FastAPI 엔드포인트
-│   └── ui/                ← Streamlit Chat UI (auto-execute examples, floating panels)
+│   ├── api/               ← FastAPI 엔드포인트 (/evaluations, /evaluation-criteria 포함)
+│   └── ui/                ← Streamlit Chat UI (evaluation scores, document upload)
 ├── scripts/
 │   ├── generate_entity_catalog.py ← KG → entity_catalog.json 생성
 │   ├── generate_embeddings.py     ← KG 노드 임베딩 → ChromaDB
 │   ├── test_agent.py              ← 에이전트 CLI 테스트
-│   └── ingest_papers.py           ← PDF 논문 수집 파이프라인
+│   ├── seed_evaluation_criteria.py ← EvaluationCriteria → Neo4j
+│   └── ingest_document.py         ← 문서 수집 CLI (URL/PDF)
 ├── pyproject.toml
 └── .env.example
 ```
@@ -222,10 +234,17 @@ agentic-ai-kg/
 - [x] Cypher 템플릿 외부화 (`config/cypher_templates.yaml`, 20+ templates)
 - [x] Streamlit UI 개선 (example auto-execute, floating panels)
 
-### Phase 4: Critic Agent (Next)
-- [ ] 평가 기준 정의 (EvaluationCriteria)
-- [ ] 평가 로직 구현 (Evaluation)
-- [ ] 지침 버저닝 시스템
+### Phase 4: Critic Agent ✅ 완료
+- [x] 평가 기준 정의 (`config/evaluation_criteria.yaml`, 15개 기준)
+- [x] 평가 로직 구현 (`src/critic/` 모듈)
+- [x] Neo4j 스키마 확장 (EvaluationCriteria, Evaluation, FailurePattern, PromptVersion)
+- [x] API 엔드포인트 (`GET /evaluations`, `GET /evaluation-criteria`)
+- [x] Streamlit UI 통합 (평가 점수 표시)
+
+### P2: Document Pipeline ✅ 완료
+- [x] 범용 문서 크롤러 (`src/ingestion/crawler.py`)
+- [x] Local docs 업로드 UI (Streamlit PDF/URL)
+- [x] Document → KG 자동 연결 (`src/ingestion/linker.py`)
 
 ### Phase 5: Prompt Optimizer
 - [ ] Failure Analyzer (FailurePattern)

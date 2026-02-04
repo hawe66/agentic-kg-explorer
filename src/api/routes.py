@@ -277,3 +277,124 @@ def approve_node(request: ApproveNodeRequest):
         node_id=result.node_id,
         message=result.message,
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /evaluations
+# ---------------------------------------------------------------------------
+
+@router.get("/evaluations")
+def get_evaluations(
+    agent: str | None = None,
+    limit: int = 20,
+    min_score: float | None = None,
+):
+    """Get recent evaluations from Neo4j.
+
+    Args:
+        agent: Filter by agent name (e.g., 'synthesizer').
+        limit: Maximum number of evaluations to return (default 20).
+        min_score: Filter to evaluations with composite_score >= this value.
+
+    Returns:
+        List of evaluation records.
+    """
+    try:
+        client = _get_neo4j_client()
+
+        # Build query with optional filters
+        where_clauses = []
+        params = {"limit": limit}
+
+        if agent:
+            where_clauses.append("e.agent_name = $agent")
+            params["agent"] = agent
+
+        if min_score is not None:
+            where_clauses.append("e.composite_score >= $min_score")
+            params["min_score"] = min_score
+
+        where_str = ""
+        if where_clauses:
+            where_str = "WHERE " + " AND ".join(where_clauses)
+
+        query = f"""
+            MATCH (e:Evaluation)
+            {where_str}
+            RETURN e.id AS id,
+                   e.agent_name AS agent_name,
+                   e.query AS query,
+                   e.composite_score AS composite_score,
+                   e.feedback AS feedback,
+                   e.created_at AS created_at
+            ORDER BY e.created_at DESC
+            LIMIT $limit
+        """
+
+        rows = client.run_cypher(query, params)
+        client.close()
+
+        return {
+            "evaluations": [
+                {
+                    "id": row["id"],
+                    "agent_name": row["agent_name"],
+                    "query": row["query"],
+                    "composite_score": row["composite_score"],
+                    "feedback": row["feedback"],
+                    "created_at": str(row["created_at"]) if row["created_at"] else None,
+                }
+                for row in rows
+            ],
+            "count": len(rows),
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Neo4j unavailable: {e}")
+
+
+# ---------------------------------------------------------------------------
+# GET /evaluation-criteria
+# ---------------------------------------------------------------------------
+
+@router.get("/evaluation-criteria")
+def get_evaluation_criteria(agent: str | None = None):
+    """Get all evaluation criteria, optionally filtered by agent.
+
+    Args:
+        agent: Filter by agent_target (e.g., 'synthesizer').
+
+    Returns:
+        List of evaluation criteria.
+    """
+    try:
+        client = _get_neo4j_client()
+
+        if agent:
+            query = """
+                MATCH (ec:EvaluationCriteria {agent_target: $agent})-[:DERIVED_FROM]->(p:Principle)
+                WHERE ec.is_active = true
+                RETURN ec.id AS id, ec.name AS name, ec.description AS description,
+                       ec.weight AS weight, p.name AS principle_name
+                ORDER BY ec.weight DESC
+            """
+            rows = client.run_cypher(query, {"agent": agent})
+        else:
+            query = """
+                MATCH (ec:EvaluationCriteria)-[:DERIVED_FROM]->(p:Principle)
+                WHERE ec.is_active = true
+                RETURN ec.id AS id, ec.name AS name, ec.description AS description,
+                       ec.agent_target AS agent_target, ec.weight AS weight, p.name AS principle_name
+                ORDER BY ec.agent_target, ec.weight DESC
+            """
+            rows = client.run_cypher(query)
+
+        client.close()
+
+        return {
+            "criteria": [dict(row) for row in rows],
+            "count": len(rows),
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Neo4j unavailable: {e}")

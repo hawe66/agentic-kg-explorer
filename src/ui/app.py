@@ -13,6 +13,43 @@ from src.api.kg_writer import propose_node, approve_node, WebResult, ProposedNod
 from src.graph.client import Neo4jClient
 
 
+# ---------------------------------------------------------------------------
+# Neo4j Serialization Helper
+# ---------------------------------------------------------------------------
+
+def _serialize_neo4j_value(value):
+    """Serialize Neo4j Node/Relationship objects to plain dicts."""
+    # Neo4j Node: has .labels and .items()
+    if hasattr(value, "labels") and hasattr(value, "items"):
+        return {
+            "labels": list(value.labels),
+            "properties": dict(value.items()),
+            "element_id": getattr(value, "element_id", None),
+        }
+    # Neo4j Relationship: has .type and .items()
+    elif hasattr(value, "type") and hasattr(value, "items") and hasattr(value, "start_node"):
+        return {
+            "type": value.type,
+            "properties": dict(value.items()),
+            "start_node": _serialize_neo4j_value(value.start_node),
+            "end_node": _serialize_neo4j_value(value.end_node),
+        }
+    elif isinstance(value, dict):
+        return {k: _serialize_neo4j_value(v) for k, v in value.items()}
+    elif isinstance(value, list):
+        return [_serialize_neo4j_value(v) for v in value]
+    else:
+        return value
+
+
+def _serialize_neo4j_results(results: list) -> list[dict]:
+    """Serialize a list of Neo4j records to plain dicts."""
+    return [
+        {key: _serialize_neo4j_value(val) for key, val in record.items()}
+        for record in results
+    ]
+
+
 st.set_page_config(
     page_title="Agentic KG Explorer",
     page_icon="🔍",
@@ -65,6 +102,15 @@ if "show_graph" not in st.session_state:
 if "graph_data" not in st.session_state:
     st.session_state.graph_data = None
 
+if "last_evaluation" not in st.session_state:
+    st.session_state.last_evaluation = None
+
+if "pending_document" not in st.session_state:
+    st.session_state.pending_document = None
+
+if "document_links" not in st.session_state:
+    st.session_state.document_links = None
+
 
 # ---------------------------------------------------------------------------
 # Graph Visualization Helpers
@@ -85,6 +131,7 @@ def fetch_kg_subgraph(center_id: str = None, max_nodes: int = 50) -> tuple[list,
     nodes = []
     edges = []
     seen_nodes = set()
+    seen_edges = set()
 
     try:
         with Neo4jClient() as client:
@@ -97,7 +144,7 @@ def fetch_kg_subgraph(center_id: str = None, max_nodes: int = 50) -> tuple[list,
                 RETURN n, r, m
                 LIMIT 100
                 """
-                results = client.run_cypher(query, {"center_id": center_id})
+                raw_results = client.run_cypher(query, {"center_id": center_id})
             else:
                 # Fetch overview: Principles -> Methods -> Implementations
                 query = """
@@ -106,14 +153,17 @@ def fetch_kg_subgraph(center_id: str = None, max_nodes: int = 50) -> tuple[list,
                 RETURN p, a, m, i, impl
                 LIMIT 200
                 """
-                results = client.run_cypher(query)
+                raw_results = client.run_cypher(query)
+
+            # Serialize Neo4j objects to plain dicts
+            results = _serialize_neo4j_results(raw_results)
 
             for record in results:
                 for key, value in record.items():
                     if value is None:
                         continue
 
-                    # Handle nodes
+                    # Handle nodes (serialized format has "labels" key)
                     if isinstance(value, dict) and "labels" in value:
                         props = value.get("properties", {})
                         node_id = props.get("id", "")
@@ -128,18 +178,23 @@ def fetch_kg_subgraph(center_id: str = None, max_nodes: int = 50) -> tuple[list,
                             ))
                             seen_nodes.add(node_id)
 
-                    # Handle relationships
-                    elif isinstance(value, dict) and "type" in value:
+                    # Handle relationships (serialized format has "type" and "start_node"/"end_node")
+                    elif isinstance(value, dict) and "type" in value and "start_node" in value:
                         rel_type = value.get("type", "")
-                        start = value.get("start_node", {}).get("properties", {}).get("id")
-                        end = value.get("end_node", {}).get("properties", {}).get("id")
-                        if start and end:
-                            edges.append(Edge(
-                                source=start,
-                                target=end,
-                                label=rel_type[:10],
-                                color="#888888"
-                            ))
+                        start_props = value.get("start_node", {}).get("properties", {})
+                        end_props = value.get("end_node", {}).get("properties", {})
+                        start_id = start_props.get("id")
+                        end_id = end_props.get("id")
+                        if start_id and end_id:
+                            edge_key = (start_id, end_id, rel_type)
+                            if edge_key not in seen_edges:
+                                edges.append(Edge(
+                                    source=start_id,
+                                    target=end_id,
+                                    label=rel_type[:10],
+                                    color="#888888"
+                                ))
+                                seen_edges.add(edge_key)
 
     except Exception as e:
         st.error(f"Failed to fetch graph: {e}")
@@ -276,6 +331,49 @@ with st.sidebar:
 
     st.divider()
 
+    st.header("Evaluation")
+    enable_evaluation = st.toggle(
+        "Enable Critic Evaluation",
+        value=False,
+        help="Run evaluation on agent outputs after each query (Phase 4)",
+        key="eval_toggle"
+    )
+
+    st.divider()
+
+    # Document Upload Section
+    st.header("Add Document")
+    with st.expander("📄 Upload Document", expanded=False):
+        upload_tab, url_tab = st.tabs(["PDF Upload", "URL"])
+
+        with upload_tab:
+            uploaded_file = st.file_uploader(
+                "Choose PDF",
+                type=["pdf"],
+                help="Upload a PDF document to analyze and link to KG"
+            )
+            if uploaded_file and st.button("Process PDF", key="process_pdf"):
+                st.session_state.pending_document = {
+                    "type": "pdf",
+                    "file": uploaded_file,
+                }
+                st.rerun()
+
+        with url_tab:
+            doc_url = st.text_input(
+                "Document URL",
+                placeholder="https://example.com/article",
+                help="Enter URL of article or paper to analyze"
+            )
+            if doc_url and st.button("Process URL", key="process_url"):
+                st.session_state.pending_document = {
+                    "type": "url",
+                    "url": doc_url,
+                }
+                st.rerun()
+
+    st.divider()
+
     if st.button("Clear Chat"):
         st.session_state.messages = []
         st.session_state.last_web_results = []
@@ -324,10 +422,21 @@ if prompt:
                 settings.llm_model = selected_model
 
                 try:
-                    result = run_agent(prompt)
+                    result = run_agent(prompt, evaluate=enable_evaluation)
                 finally:
                     settings.llm_provider = original_provider
                     settings.llm_model = original_model
+
+                # Store evaluation results if available
+                if enable_evaluation:
+                    try:
+                        from src.critic.evaluator import get_evaluator
+                        evaluator = get_evaluator()
+                        evaluations = evaluator.evaluate_pipeline(result)
+                        st.session_state.last_evaluation = evaluations
+                    except Exception as eval_err:
+                        st.session_state.last_evaluation = None
+                        st.warning(f"Evaluation failed: {eval_err}")
 
                 answer = result.get("answer") or "I couldn't find relevant information."
                 sources = result.get("sources") or []
@@ -369,6 +478,23 @@ if prompt:
                             title = vr.get("title", "Untitled")
                             score = vr.get("score", 0)
                             st.write(f"- [{src_type}] {title} (score: {score:.2f})")
+
+                # Show evaluation results if available
+                if enable_evaluation and st.session_state.last_evaluation:
+                    with st.expander(f"📊 Evaluation ({len(st.session_state.last_evaluation)} agents)", expanded=False):
+                        for ev in st.session_state.last_evaluation:
+                            score_pct = ev.composite_score * 100
+                            score_color = "green" if score_pct >= 70 else "orange" if score_pct >= 50 else "red"
+                            st.markdown(f"**{ev.agent_name}**: <span style='color:{score_color}'>{score_pct:.0f}%</span>", unsafe_allow_html=True)
+
+                            # Show individual criterion scores
+                            if ev.scores:
+                                score_items = ", ".join([f"{k.split(':')[-1]}: {v:.0%}" for k, v in ev.scores.items()])
+                                st.caption(score_items)
+
+                            # Show feedback if low score
+                            if ev.feedback:
+                                st.caption(f"💡 {ev.feedback[:150]}...")
 
                 st.session_state.messages.append({
                     "role": "assistant",
@@ -530,6 +656,146 @@ if st.session_state.pending_proposal is not None:
 
             if cancelled:
                 st.session_state.pending_proposal = None
+                st.rerun()
+
+
+# ---------------------------------------------------------------------------
+# Document Processing Panel
+# ---------------------------------------------------------------------------
+
+if st.session_state.pending_document is not None:
+    doc_info = st.session_state.pending_document
+
+    with st.expander("📄 Processing Document", expanded=True):
+        try:
+            from src.ingestion.crawler import DocumentCrawler
+            from src.ingestion.linker import DocumentLinker
+            from src.ingestion.chunker import chunk_for_embedding
+            import tempfile
+
+            crawler = DocumentCrawler()
+            linker = DocumentLinker()
+
+            # Step 1: Crawl document
+            with st.spinner("Crawling document..."):
+                if doc_info["type"] == "pdf":
+                    # Save uploaded file to temp location
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                        tmp.write(doc_info["file"].getvalue())
+                        tmp_path = tmp.name
+                    doc = crawler.crawl_pdf(tmp_path)
+                else:
+                    doc = crawler.crawl_url(doc_info["url"])
+
+            st.success(f"Crawled: {doc.title}")
+            st.caption(f"Type: {doc.doc_type} | {len(doc.content)} chars")
+
+            # Step 2: Extract links
+            with st.spinner("Analyzing for KG links..."):
+                result = linker.link_document(doc)
+
+            if result.proposed_links:
+                st.write(f"**Found {len(result.proposed_links)} proposed links:**")
+
+                # Store for approval
+                st.session_state.document_links = {
+                    "doc": doc,
+                    "links": result.proposed_links,
+                    "approved": [True] * len(result.proposed_links),  # Default all approved
+                }
+
+                # Show links with checkboxes
+                with st.form("approve_doc_links"):
+                    for i, link in enumerate(result.proposed_links):
+                        col1, col2, col3 = st.columns([3, 2, 1])
+                        with col1:
+                            st.checkbox(
+                                f"{link.entity_name}",
+                                value=True,
+                                key=f"link_{i}",
+                                help=f"{link.entity_type}: {link.entity_id}"
+                            )
+                        with col2:
+                            st.caption(f"{link.relationship}")
+                        with col3:
+                            st.caption(f"{link.confidence:.0%}")
+
+                    st.caption("Uncheck links you don't want to create")
+
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        save_links = st.form_submit_button("✅ Save to KG", type="primary")
+                    with col2:
+                        embed_too = st.checkbox("Also embed chunks", value=True)
+                    with col3:
+                        cancel_doc = st.form_submit_button("❌ Cancel")
+
+                    if save_links:
+                        # Collect approved links
+                        approved = []
+                        for i, link in enumerate(result.proposed_links):
+                            if st.session_state.get(f"link_{i}", True):
+                                approved.append(link)
+
+                        if approved:
+                            with st.spinner("Saving to Neo4j..."):
+                                success = linker.save_document_to_kg(doc, approved)
+
+                            if success:
+                                st.success(f"Saved {len(approved)} links for {doc.doc_id}")
+
+                                # Optionally embed
+                                if embed_too:
+                                    with st.spinner("Generating embeddings..."):
+                                        try:
+                                            from src.retrieval.vector_store import get_vector_store
+                                            chunks = chunk_for_embedding(doc)
+                                            store = get_vector_store()
+
+                                            ids = []
+                                            documents = []
+                                            metadatas = []
+                                            for chunk in chunks:
+                                                ids.append(f"doc:{doc.content_hash}:{chunk.chunk_index}")
+                                                documents.append(chunk.text)
+                                                metadatas.append({
+                                                    "source_type": "document",
+                                                    "source_url": doc.source_url or "",
+                                                    "node_id": doc.doc_id,
+                                                    "node_label": "Document",
+                                                    "title": doc.title,
+                                                    "chunk_index": chunk.chunk_index,
+                                                    "total_chunks": chunk.total_chunks,
+                                                })
+
+                                            store.add_documents(documents, metadatas, ids)
+                                            st.success(f"Embedded {len(chunks)} chunks")
+                                        except Exception as e:
+                                            st.warning(f"Embedding failed: {e}")
+
+                                st.session_state.pending_document = None
+                                st.session_state.document_links = None
+                                st.rerun()
+                            else:
+                                st.error("Failed to save to Neo4j")
+                        else:
+                            st.warning("No links selected")
+
+                    if cancel_doc:
+                        st.session_state.pending_document = None
+                        st.session_state.document_links = None
+                        st.rerun()
+
+            else:
+                st.warning("No relevant KG entities found in this document")
+                if st.button("Close", key="close_doc"):
+                    st.session_state.pending_document = None
+                    st.rerun()
+
+        except Exception as e:
+            st.error(f"Error processing document: {e}")
+            if st.button("Close", key="close_doc_error"):
+                st.session_state.pending_document = None
                 st.rerun()
 
 
