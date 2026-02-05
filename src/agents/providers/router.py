@@ -34,27 +34,39 @@ def _load_registry() -> dict:
 # Unified SSL / HTTP client builder
 # ---------------------------------------------------------------------------
 
+def _get_ssl_context() -> Any:
+    """Create an SSL context with custom CA certificates if configured."""
+    import ssl
+    cafile = os.getenv("SSL_CERT_FILE")
+    if cafile and os.path.isfile(cafile):
+        ctx = ssl.create_default_context()
+        ctx.load_verify_locations(cafile)
+        return ctx
+    return None
+
+
 def _build_ssl_client(ssl_client_type: str | None) -> Any:
     """Build an SSL-aware HTTP client based on the provider's declared type."""
     if not ssl_client_type:
         return None
 
-    cafile = os.getenv("SSL_CERT_FILE")
+    ssl_ctx = _get_ssl_context()
 
     if ssl_client_type == "httpx":
-        if cafile and os.path.isfile(cafile):
+        if ssl_ctx:
             import httpx
-            return httpx.Client(verify=cafile)
+            return httpx.Client(verify=ssl_ctx)
         return None
 
     if ssl_client_type == "httpx_openai":
         from openai import DefaultHttpxClient
-        if cafile and os.path.isfile(cafile):
-            return DefaultHttpxClient(verify=cafile)
+        if ssl_ctx:
+            return DefaultHttpxClient(verify=ssl_ctx)
         return DefaultHttpxClient()
 
     if ssl_client_type == "gemini":
         from google.genai import types
+        cafile = os.getenv("SSL_CERT_FILE")
         if cafile and os.path.isfile(cafile):
             return types.HttpOptions(
                 api_version="v1alpha", client_args={"verify": cafile},
