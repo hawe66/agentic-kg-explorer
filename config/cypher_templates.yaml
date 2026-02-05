@@ -1,0 +1,320 @@
+# Cypher Query Templates Configuration
+# Used by search_planner.py for graph retrieval
+
+# Entity type detection patterns (used for template selection)
+entity_patterns:
+  Principle:
+    - "perception"
+    - "memory"
+    - "planning"
+    - "reasoning"
+    - "tool use"
+    - "reflection"
+    - "grounding"
+    - "learning"
+    - "multi-agent"
+    - "guardrails"
+    - "tracing"
+    - "p:"  # ID prefix
+
+  Implementation:
+    - "langchain"
+    - "crewai"
+    - "autogen"
+    - "langgraph"
+    - "semantic kernel"
+    - "langfuse"
+    - "llamaindex"
+    - "haystack"
+    - "dspy"
+    - "impl:"  # ID prefix
+
+  Method:
+    - "m:"  # ID prefix (fallback for methods)
+
+  Standard:
+    - "mcp"
+    - "a2a"
+    - "otel"
+    - "opentelemetry"
+    - "std:"  # ID prefix
+
+# Query templates organized by intent and entity type
+templates:
+  # === LOOKUP Templates ===
+  lookup_method:
+    intent: lookup
+    entity_types: [Method]
+    params: [entity]
+    cypher: |
+      MATCH (m:Method)
+      WHERE toLower(m.name) CONTAINS toLower($entity)
+         OR m.id = $entity
+      OPTIONAL MATCH (m)-[addr:ADDRESSES]->(p:Principle)
+      OPTIONAL MATCH (i:Implementation)-[impl:IMPLEMENTS]->(m)
+      RETURN m,
+             collect(DISTINCT {principle: p, role: addr.role, weight: addr.weight}) as principles,
+             collect(DISTINCT {implementation: i, support_level: impl.support_level}) as implementations
+      LIMIT 10
+
+  lookup_implementation:
+    intent: lookup
+    entity_types: [Implementation]
+    params: [entity]
+    cypher: |
+      MATCH (i:Implementation)
+      WHERE toLower(i.name) CONTAINS toLower($entity)
+         OR i.id = $entity
+      OPTIONAL MATCH (i)-[impl:IMPLEMENTS]->(m:Method)
+      OPTIONAL MATCH (m)-[addr:ADDRESSES]->(p:Principle)
+      RETURN i,
+             collect(DISTINCT {method: m, support_level: impl.support_level}) as methods,
+             collect(DISTINCT p) as principles
+      LIMIT 10
+
+  lookup_principle:
+    intent: lookup
+    entity_types: [Principle]
+    params: [entity]
+    cypher: |
+      MATCH (p:Principle)
+      WHERE toLower(p.name) CONTAINS toLower($entity)
+         OR p.id = $entity
+      OPTIONAL MATCH (m:Method)-[addr:ADDRESSES]->(p)
+      OPTIONAL MATCH (i:Implementation)-[:IMPLEMENTS]->(m)
+      RETURN p,
+             collect(DISTINCT {method: m, role: addr.role, weight: addr.weight}) as methods,
+             count(DISTINCT i) as implementation_count
+      LIMIT 10
+
+  lookup_standard:
+    intent: lookup
+    entity_types: [Standard]
+    params: [entity]
+    cypher: |
+      MATCH (s:Standard)
+      WHERE toLower(s.name) CONTAINS toLower($entity)
+         OR s.id = $entity
+      OPTIONAL MATCH (sv:StandardVersion)-[:HAS_VERSION]->(s)
+      OPTIONAL MATCH (i:Implementation)-[c:COMPLIES_WITH]->(sv)
+      RETURN s,
+             collect(DISTINCT sv) as versions,
+             collect(DISTINCT {implementation: i, role: c.role, level: c.level}) as compliant_implementations
+      LIMIT 10
+
+  # === EXPLORATION / PATH Templates ===
+  path_principle_to_methods:
+    intent: [exploration, path]
+    entity_types: [Principle]
+    params: [entity]
+    cypher: |
+      MATCH (p:Principle)
+      WHERE toLower(p.name) CONTAINS toLower($entity)
+         OR p.id = $entity
+      MATCH (m:Method)-[addr:ADDRESSES]->(p)
+      OPTIONAL MATCH (i:Implementation)-[impl:IMPLEMENTS]->(m)
+      RETURN p, m, addr,
+             collect(DISTINCT {implementation: i, support_level: impl.support_level}) as implementations
+      ORDER BY addr.weight DESC
+      LIMIT 20
+
+  path_method_to_implementations:
+    intent: [exploration, path]
+    entity_types: [Method]
+    params: [entity]
+    cypher: |
+      MATCH (m:Method)
+      WHERE toLower(m.name) CONTAINS toLower($entity)
+         OR m.id = $entity
+      MATCH (i:Implementation)-[impl:IMPLEMENTS]->(m)
+      OPTIONAL MATCH (m)-[addr:ADDRESSES]->(p:Principle)
+      RETURN m, i, impl,
+             collect(DISTINCT {principle: p, role: addr.role}) as principles
+      ORDER BY impl.support_level
+      LIMIT 20
+
+  path_implementation_to_principles:
+    intent: [exploration, path]
+    entity_types: [Implementation]
+    params: [entity]
+    cypher: |
+      MATCH (i:Implementation)
+      WHERE toLower(i.name) CONTAINS toLower($entity)
+         OR i.id = $entity
+      MATCH (i)-[impl:IMPLEMENTS]->(m:Method)-[addr:ADDRESSES]->(p:Principle)
+      RETURN i, m, p, impl, addr
+      ORDER BY p.name, addr.weight DESC
+      LIMIT 30
+
+  # === PATH TRACE Templates (multi-hop) ===
+  path_trace_principle_to_implementation:
+    intent: path_trace
+    entity_types: [Principle, Implementation]
+    params: [entity1, entity2]
+    cypher: |
+      MATCH path = (p:Principle)<-[:ADDRESSES]-(m:Method)<-[:IMPLEMENTS]-(i:Implementation)
+      WHERE (toLower(p.name) CONTAINS toLower($entity1) OR p.id = $entity1)
+        AND (toLower(i.name) CONTAINS toLower($entity2) OR i.id = $entity2)
+      RETURN path, p, m, i
+      LIMIT 10
+
+  path_trace_method_to_implementation:
+    intent: path_trace
+    entity_types: [Method, Implementation]
+    params: [entity1, entity2]
+    cypher: |
+      MATCH path = (m:Method)<-[:IMPLEMENTS]-(i:Implementation)
+      WHERE (toLower(m.name) CONTAINS toLower($entity1) OR m.id = $entity1)
+        AND (toLower(i.name) CONTAINS toLower($entity2) OR i.id = $entity2)
+      RETURN path, m, i
+      LIMIT 10
+
+  # === COMPARISON Templates ===
+  comparison_implementations:
+    intent: comparison
+    entity_types: [Implementation, Implementation]
+    params: [entity1, entity2]
+    cypher: |
+      MATCH (i1:Implementation), (i2:Implementation)
+      WHERE (toLower(i1.name) CONTAINS toLower($entity1) OR i1.id = $entity1)
+        AND (toLower(i2.name) CONTAINS toLower($entity2) OR i2.id = $entity2)
+      OPTIONAL MATCH (i1)-[impl1:IMPLEMENTS]->(m1:Method)
+      OPTIONAL MATCH (i2)-[impl2:IMPLEMENTS]->(m2:Method)
+      OPTIONAL MATCH (m1)-[:ADDRESSES]->(p:Principle)<-[:ADDRESSES]-(m2)
+      RETURN i1, i2,
+             collect(DISTINCT m1) as methods1,
+             collect(DISTINCT m2) as methods2,
+             collect(DISTINCT p) as common_principles
+
+  comparison_methods:
+    intent: comparison
+    entity_types: [Method, Method]
+    params: [entity1, entity2]
+    cypher: |
+      MATCH (m1:Method), (m2:Method)
+      WHERE (toLower(m1.name) CONTAINS toLower($entity1) OR m1.id = $entity1)
+        AND (toLower(m2.name) CONTAINS toLower($entity2) OR m2.id = $entity2)
+      OPTIONAL MATCH (m1)-[a1:ADDRESSES]->(p1:Principle)
+      OPTIONAL MATCH (m2)-[a2:ADDRESSES]->(p2:Principle)
+      OPTIONAL MATCH (m1)-[:ADDRESSES]->(cp:Principle)<-[:ADDRESSES]-(m2)
+      RETURN m1, m2,
+             collect(DISTINCT {principle: p1, role: a1.role}) as principles1,
+             collect(DISTINCT {principle: p2, role: a2.role}) as principles2,
+             collect(DISTINCT cp) as common_principles
+
+  comparison_principles:
+    intent: comparison
+    entity_types: [Principle, Principle]
+    params: [entity1, entity2]
+    cypher: |
+      MATCH (p1:Principle), (p2:Principle)
+      WHERE (toLower(p1.name) CONTAINS toLower($entity1) OR p1.id = $entity1)
+        AND (toLower(p2.name) CONTAINS toLower($entity2) OR p2.id = $entity2)
+      OPTIONAL MATCH (m1:Method)-[:ADDRESSES]->(p1)
+      OPTIONAL MATCH (m2:Method)-[:ADDRESSES]->(p2)
+      OPTIONAL MATCH (m_both:Method)-[:ADDRESSES]->(p1), (m_both)-[:ADDRESSES]->(p2)
+      RETURN p1, p2,
+             collect(DISTINCT m1) as methods1,
+             collect(DISTINCT m2) as methods2,
+             collect(DISTINCT m_both) as methods_addressing_both
+
+  # === AGGREGATION Templates ===
+  aggregation_by_principle:
+    intent: aggregation
+    entity_types: []
+    params: []
+    cypher: |
+      MATCH (p:Principle)
+      OPTIONAL MATCH (m:Method)-[:ADDRESSES]->(p)
+      OPTIONAL MATCH (i:Implementation)-[:IMPLEMENTS]->(m)
+      RETURN p.name as principle,
+             count(DISTINCT m) as method_count,
+             count(DISTINCT i) as implementation_count
+      ORDER BY method_count DESC
+
+  aggregation_by_method_family:
+    intent: aggregation
+    entity_types: []
+    params: []
+    cypher: |
+      MATCH (m:Method)
+      OPTIONAL MATCH (i:Implementation)-[:IMPLEMENTS]->(m)
+      RETURN m.method_family as family,
+             count(DISTINCT m) as method_count,
+             count(DISTINCT i) as implementation_count
+      ORDER BY method_count DESC
+
+  aggregation_by_maturity:
+    intent: aggregation
+    entity_types: []
+    params: []
+    cypher: |
+      MATCH (m:Method)
+      RETURN m.maturity as maturity,
+             count(m) as count
+      ORDER BY count DESC
+
+  # === COVERAGE CHECK Templates ===
+  coverage_methods_without_paper:
+    intent: coverage_check
+    entity_types: []
+    params: []
+    description: "Methods lacking paper references"
+    cypher: |
+      MATCH (m:Method)
+      WHERE NOT (m)<-[:PROPOSES]-(:Document) AND m.seminal_source IS NULL
+      RETURN m.id, m.name, m.year_introduced
+      ORDER BY m.year_introduced DESC
+
+  coverage_orphan_implementations:
+    intent: coverage_check
+    entity_types: []
+    params: []
+    description: "Implementations not connected to any method"
+    cypher: |
+      MATCH (i:Implementation)
+      WHERE NOT (i)-[:IMPLEMENTS]->(:Method)
+      RETURN i.id, i.name
+
+  coverage_principle_distribution:
+    intent: coverage_check
+    entity_types: []
+    params: []
+    description: "Principle coverage statistics"
+    cypher: |
+      MATCH (p:Principle)
+      OPTIONAL MATCH (m:Method)-[:ADDRESSES]->(p)
+      OPTIONAL MATCH (i:Implementation)-[:IMPLEMENTS]->(m)
+      RETURN p.name,
+             count(DISTINCT m) as method_count,
+             count(DISTINCT i) as impl_count
+      ORDER BY method_count ASC
+
+  # === DEFINITION Templates ===
+  definition_all_principles:
+    intent: definition
+    entity_types: []
+    params: []
+    cypher: |
+      MATCH (p:Principle)
+      RETURN p.id, p.name, p.description
+      ORDER BY p.name
+
+  definition_relationship_types:
+    intent: definition
+    entity_types: []
+    params: []
+    cypher: |
+      CALL db.relationshipTypes() YIELD relationshipType
+      RETURN relationshipType
+      ORDER BY relationshipType
+
+# Default templates per intent (when no specific entity type matches)
+default_templates:
+  lookup: lookup_method
+  exploration: path_principle_to_methods
+  path: path_principle_to_methods
+  comparison: comparison_implementations
+  aggregation: aggregation_by_principle
+  coverage_check: coverage_methods_without_paper
+  definition: definition_all_principles

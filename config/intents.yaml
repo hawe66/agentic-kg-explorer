@@ -1,0 +1,102 @@
+# Intent Classification Configuration
+# Used by intent_classifier.py for query classification
+
+intents:
+  # === Read Operations ===
+  lookup:
+    description: "Single entity lookup - retrieve detailed information about one concept"
+    examples:
+      - "What is ReAct?"
+      - "Tell me about LangChain"
+      - "Explain Memory principle"
+      - "What's the maturity of m:react?"
+    entity_count: 1
+
+  exploration:
+    description: "Relationship exploration (1-hop) - find connected entities"
+    aliases: ["path"]  # backward compatibility
+    examples:
+      - "What methods address Memory?"
+      - "Which frameworks implement ReAct?"
+      - "What principles does LangChain support?"
+    entity_count: 1
+
+  path_trace:
+    description: "Multi-hop path tracing - follow relationship chains"
+    examples:
+      - "How does CoT connect to LangChain?"
+      - "Trace from Planning principle to implementations"
+      - "What's the path from Reasoning to CrewAI?"
+    entity_count: 2
+
+  aggregation:
+    description: "Statistics and counts - aggregate data across entities"
+    examples:
+      - "How many methods address each principle?"
+      - "Count implementations by support level"
+      - "Which principle has the most methods?"
+    entity_count: 0
+
+  # === Analysis Operations ===
+  comparison:
+    description: "Compare two or more entities - highlight similarities and differences"
+    examples:
+      - "LangChain vs CrewAI"
+      - "Difference between CoT and ReAct"
+      - "Compare Planning and Reasoning principles"
+    entity_count: 2
+
+  recommendation:
+    description: "Suggest entities based on criteria"
+    examples:
+      - "Recommend a method for improving reasoning"
+      - "What framework should I use for multi-agent systems?"
+      - "Suggest production-ready implementations"
+    entity_count: 0
+
+  coverage_check:
+    description: "Knowledge graph quality and gap analysis"
+    examples:
+      - "Which methods lack paper references?"
+      - "Find orphan implementations"
+      - "What principles have low method coverage?"
+    entity_count: 0
+
+  # === Meta Operations ===
+  definition:
+    description: "Schema and structure explanation"
+    examples:
+      - "What is the ADDRESSES relationship?"
+      - "Explain the difference between Method and Implementation"
+      - "What are the 11 principles?"
+    entity_count: 0
+
+  # === Write Operations ===
+  update:
+    description: "Suggest adding or modifying data (requires approval)"
+    examples:
+      - "Add Self-RAG as a new method"
+      - "Update LangChain description"
+      - "Link this paper to ReAct method"
+    entity_count: 1
+
+  # === External Operations ===
+  expansion:
+    description: "Domain-relevant but requires web search (not in KG)"
+    examples:
+      - "Latest MCP specification changes"
+      - "New agent frameworks in 2026"
+      - "What is Claude's computer use feature?"
+    entity_count: 0
+
+  out_of_scope:
+    description: "Query is outside the Agentic AI domain entirely"
+    examples:
+      - "What's the weather?"
+      - "Tell me a joke"
+      - "Who won the World Cup?"
+    entity_count: 0
+
+# Mapping for backward compatibility with old 4-intent system
+intent_aliases:
+  path: exploration

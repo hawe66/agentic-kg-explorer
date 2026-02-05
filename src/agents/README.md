@@ -13,7 +13,14 @@ User Query
     ↓
 [Graph Retriever] - Neo4j Cypher 실행 AND/OR ChromaDB 벡터 검색
     ↓
-[Synthesizer] - 자연어 답변 생성 (graph + vector results)
+┌─ results? ─┐
+│    YES     │ NO (or expansion intent)
+↓            ↓
+skip      [Web Search] - Tavily 웹 검색 (Phase 3)
+│            │
+└────┬───────┘
+     ↓
+[Synthesizer] - 자연어 답변 생성 (graph + vector + web results)
     ↓
 Answer + Sources + Confidence
 ```
@@ -39,9 +46,13 @@ class AgentState(TypedDict):
     # Vector Search
     vector_results: Optional[list[dict]]  # ChromaDB similarity results
 
+    # Web Search (Phase 3)
+    web_results: Optional[list[dict]]  # Tavily search results
+    web_query: Optional[str]           # Query sent to Tavily
+
     # Synthesis
     answer: str
-    sources: list[dict]
+    sources: list[dict]  # KG sources + Web sources
     confidence: float
 
     # Error Handling
@@ -64,9 +75,10 @@ class AgentState(TypedDict):
 - "Compare LangChain and CrewAI"
 - "Difference between ReAct and Chain-of-Thought"
 
-### 4. Expansion - 그래프 외부 정보
+### 4. Expansion - 그래프 외부 정보 (+ Web Search)
 - "Latest agent frameworks in 2025"
-- *(Phase 3에서 Web Search로 연결)*
+- Tavily 웹 검색으로 최신 정보 제공
+- KG/Vector 결과가 없을 때도 자동 폴백
 
 ## 사용 방법
 
@@ -115,6 +127,7 @@ src/agents/
     ├── intent_classifier.py   # LLM 기반 의도 분류
     ├── search_planner.py      # Cypher 쿼리 템플릿 선택
     ├── graph_retriever.py     # Neo4j 쿼리 실행
+    ├── web_search.py          # Tavily 웹 검색 (Phase 3)
     └── synthesizer.py         # LLM 기반 답변 생성
 ```
 
@@ -169,6 +182,9 @@ LLM_PROVIDER=gemini              # openai | anthropic | gemini
 # OPENAI_API_KEY=sk-...
 # ANTHROPIC_API_KEY=sk-ant-...
 GEMINI_API_KEY=your-key
+
+# Web Search (Phase 3)
+TAVILY_API_KEY=tvly-xxxxx  # 없으면 웹 검색 스킵
 ```
 
 ## 예시 출력
@@ -205,11 +221,23 @@ LLM API 호출 실패 시:
 - Intent Classifier: 휴리스틱 기반 분류 (키워드 매칭)
 - Synthesizer: 간단한 텍스트 포매팅
 
-## Phase 3 연동 계획
+## Web Search (Phase 3) ✅
 
-- `expansion` intent 시 Web Search Expander 호출
-- 그래프에 없는 최신 정보를 웹에서 검색
-- 사용자 승인 후 그래프에 추가 가능
+Tavily API를 통한 웹 검색이 구현되었습니다.
+
+### 트리거 조건
+- `expansion` intent → 항상 웹 검색
+- `lookup`/`path`/`comparison` + KG/Vector 결과 없음 → 폴백으로 웹 검색
+
+### 동작
+1. Graph Retriever 실행 후 조건부 분기
+2. 조건 충족 시 Tavily 검색 (max 5 results)
+3. Synthesizer에서 KG + Vector + Web 결과 통합
+4. Sources에 Web 소스도 포함 (type: "Web")
+
+### 제한사항
+- View-only: 웹 결과를 KG에 자동 추가하지 않음
+- `TAVILY_API_KEY` 미설정 시 graceful skip
 
 ## 디버깅
 
@@ -221,6 +249,13 @@ print(result["cypher_executed"])
 
 # Check raw KG results
 print(result["kg_results"])
+
+# Check vector results
+print(result["vector_results"])
+
+# Check web results (Phase 3)
+print(result["web_results"])
+print(result["web_query"])
 
 # Check error
 if result["error"]:

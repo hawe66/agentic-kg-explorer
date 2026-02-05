@@ -177,16 +177,16 @@ response = client.search(
 
 ## 6. 체크리스트 (구현 시작 전 확인)
 
-- [ ] `generate_embeddings.py` 리팩터: 노드 통합 텍스트 + 관계 맥락 포함
-- [ ] 메타데이터 스키마 확장 (`source_type`, `source_url`, `collected_at`, ...)
-- [ ] ID 스키마 변경 (`kg:{node_id}`, `web:{hash}:{chunk}`)
-- [ ] ChromaDB collection 마이그레이션
-- [ ] `vector_store.py`에 메타데이터 필터링 추가
-- [ ] `config/settings.py`에 `TAVILY_API_KEY` 추가
-- [ ] `pyproject.toml`에 `tavily-python` 추가
-- [ ] Web Search Expander 노드 구현
-- [ ] Synthesizer에 웹 출처 표시 로직 추가
-- [ ] 기존 `vector_first`/`hybrid` 검색이 새 스키마에서도 동작하는지 검증
+- [x] `generate_embeddings.py` 리팩터: 노드 통합 텍스트 + 관계 맥락 포함
+- [x] 메타데이터 스키마 확장 (`source_type`, `source_url`, `collected_at`, ...)
+- [x] ID 스키마 변경 (`kg:{node_id}`, `web:{hash}:{chunk}`)
+- [x] ChromaDB collection 마이그레이션 (new collection: `kg_nodes_v2`)
+- [x] `vector_store.py`에 메타데이터 필터링 추가
+- [x] `config/settings.py`에 `TAVILY_API_KEY` 추가 (read from .env)
+- [x] `pyproject.toml`에 `tavily-python` 추가
+- [x] Web Search Expander 노드 구현
+- [x] Synthesizer에 웹 출처 표시 로직 추가
+- [x] 기존 `vector_first`/`hybrid` 검색이 새 스키마에서도 동작하는지 검증
 
 ---
 

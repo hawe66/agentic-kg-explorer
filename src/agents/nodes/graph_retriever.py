@@ -101,7 +101,11 @@ def retrieve_from_graph(state: AgentState) -> AgentState:
 # ---------------------------------------------------------------------------
 
 def _run_vector_search(query_text: str, n_results: int = 5) -> list[dict]:
-    """Embed query and search ChromaDB. Returns list of dicts (serializable)."""
+    """Embed query and search ChromaDB. Returns list of dicts (serializable).
+
+    Uses new unified schema with source_type, source_id, etc.
+    Deduplicates by node_id to avoid returning many chunks from same document.
+    """
     if not query_text:
         return []
     try:
@@ -113,19 +117,35 @@ def _run_vector_search(query_text: str, n_results: int = 5) -> list[dict]:
         if embedder is None or not store.is_available:
             return []
 
+        # Fetch more results to allow for deduplication
         embedding = embedder.embed_single(query_text)
-        results = store.query(query_embedding=embedding, n_results=n_results)
+        results = store.query(query_embedding=embedding, n_results=n_results * 3)
 
-        return [
-            {
+        # Deduplicate by node_id, keeping highest score per document
+        seen_nodes = set()
+        deduplicated = []
+        for r in results:
+            node_key = r.node_id or r.source_id  # Use node_id if available
+            if node_key in seen_nodes:
+                continue
+            seen_nodes.add(node_key)
+            deduplicated.append({
+                # Identity
+                "source_type": r.source_type,
+                "source_id": r.source_id,
+                "source_url": r.source_url,
+                # KG linkage
                 "node_id": r.node_id,
                 "node_label": r.node_label,
+                # Content
+                "title": r.title,
                 "text": r.text,
-                "field": r.field,
                 "score": r.score,
-            }
-            for r in results
-        ]
+            })
+            if len(deduplicated) >= n_results:
+                break
+
+        return deduplicated
     except Exception as e:
         print(f"[Graph Retriever] Vector search error: {e}")
         return []

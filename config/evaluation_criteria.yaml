@@ -1,0 +1,205 @@
+# Evaluation Criteria Configuration
+# Derived from 11 Principles for agent output evaluation
+# Used by CriticEvaluator to score agent responses
+
+version: "1.0.0"
+
+# Criteria grouped by agent target
+criteria:
+
+  # ============================================================
+  # Synthesizer Criteria (7 criteria)
+  # ============================================================
+  synthesizer:
+    - id: "ec:answer-relevance"
+      name: "Answer Relevance"
+      principle_id: "p:reasoning"
+      description: "답변이 질문에 직접적으로 관련되고 적절히 응답하는가"
+      weight: 0.20
+      scoring_rubric: |
+        1.0: 질문의 모든 측면에 직접 답변
+        0.8: 대부분의 질문에 답변하나 일부 누락
+        0.6: 관련은 있으나 간접적인 답변
+        0.4: 부분적으로만 관련됨
+        0.2: 거의 관련 없음
+        0.0: 완전히 관련 없음
+
+    - id: "ec:source-citation"
+      name: "Source Citation"
+      principle_id: "p:grounding"
+      description: "KG 출처(Method, Implementation 등)를 명시적으로 인용하는가"
+      weight: 0.15
+      scoring_rubric: |
+        1.0: 모든 주장에 KG 출처 명시
+        0.8: 대부분의 주장에 출처 있음
+        0.6: 일부 출처만 명시
+        0.4: 출처가 있으나 불명확
+        0.2: 거의 출처 없음
+        0.0: 출처 전혀 없음
+
+    - id: "ec:factual-accuracy"
+      name: "Factual Accuracy"
+      principle_id: "p:grounding"
+      description: "답변 내용이 KG 데이터와 일치하는가"
+      weight: 0.20
+      scoring_rubric: |
+        1.0: 모든 사실이 KG와 일치
+        0.8: 대부분 정확, 사소한 오류
+        0.6: 주요 사실은 정확
+        0.4: 일부 중요한 오류 포함
+        0.2: 다수의 오류
+        0.0: 대부분 부정확
+
+    - id: "ec:reasoning-steps"
+      name: "Reasoning Steps"
+      principle_id: "p:reasoning"
+      description: "답변에 논리적 추론 과정이 드러나는가"
+      weight: 0.15
+      scoring_rubric: |
+        1.0: 명확한 단계별 추론 제시
+        0.8: 추론 과정이 대체로 명확
+        0.6: 일부 추론 과정 있음
+        0.4: 추론이 암시적
+        0.2: 추론 과정 거의 없음
+        0.0: 결론만 제시
+
+    - id: "ec:completeness"
+      name: "Completeness"
+      principle_id: "p:memory"
+      description: "관련된 중요 정보를 누락하지 않았는가"
+      weight: 0.15
+      scoring_rubric: |
+        1.0: KG의 모든 관련 정보 포함
+        0.8: 주요 정보 대부분 포함
+        0.6: 핵심 정보는 있으나 보조 정보 누락
+        0.4: 일부 핵심 정보 누락
+        0.2: 많은 정보 누락
+        0.0: 거의 정보 없음
+
+    - id: "ec:conciseness"
+      name: "Conciseness"
+      principle_id: "p:planning"
+      description: "불필요한 반복이나 장황함 없이 간결한가"
+      weight: 0.10
+      scoring_rubric: |
+        1.0: 필요한 내용만 간결하게
+        0.8: 대체로 간결
+        0.6: 약간의 반복/장황함
+        0.4: 상당한 반복
+        0.2: 매우 장황함
+        0.0: 불필요한 내용이 대부분
+
+    - id: "ec:safety"
+      name: "Safety"
+      principle_id: "p:guardrails"
+      description: "유해하거나 부적절한 내용이 없는가"
+      weight: 0.05
+      scoring_rubric: |
+        1.0: 완전히 안전하고 적절함
+        0.5: 경미한 문제
+        0.0: 유해/부적절 내용 포함
+
+  # ============================================================
+  # Intent Classifier Criteria (3 criteria)
+  # ============================================================
+  intent_classifier:
+    - id: "ec:intent-accuracy"
+      name: "Intent Accuracy"
+      principle_id: "p:perception"
+      description: "사용자 의도를 정확하게 분류했는가"
+      weight: 0.40
+      scoring_rubric: |
+        1.0: 의도 완벽히 정확
+        0.5: 유사한 의도 선택 (예: lookup vs definition)
+        0.0: 완전히 잘못된 의도
+
+    - id: "ec:entity-extraction"
+      name: "Entity Extraction"
+      principle_id: "p:perception"
+      description: "쿼리에서 엔티티를 정확히 추출했는가"
+      weight: 0.40
+      scoring_rubric: |
+        1.0: 모든 엔티티 정확히 추출
+        0.8: 대부분 정확, 일부 누락
+        0.6: 주요 엔티티는 추출
+        0.4: 일부만 추출
+        0.2: 거의 추출 못함
+        0.0: 엔티티 없음
+
+    - id: "ec:scope-detection"
+      name: "Scope Detection"
+      principle_id: "p:guardrails"
+      description: "도메인 외 질문(out_of_scope)을 적절히 감지하는가"
+      weight: 0.20
+      scoring_rubric: |
+        1.0: 도메인 외 질문 정확히 감지
+        0.5: 애매한 경우 적절히 처리
+        0.0: 도메인 외 질문을 잘못 처리
+
+  # ============================================================
+  # Search Planner Criteria (3 criteria)
+  # ============================================================
+  search_planner:
+    - id: "ec:template-selection"
+      name: "Template Selection"
+      principle_id: "p:planning"
+      description: "의도와 엔티티에 맞는 Cypher 템플릿을 선택했는가"
+      weight: 0.50
+      scoring_rubric: |
+        1.0: 최적의 템플릿 선택
+        0.7: 적절한 템플릿 (차선책)
+        0.4: 부분적으로 맞는 템플릿
+        0.0: 잘못된 템플릿
+
+    - id: "ec:retrieval-mode"
+      name: "Retrieval Mode"
+      principle_id: "p:tool-use"
+      description: "graph_only/vector_first/hybrid 선택이 적절한가"
+      weight: 0.30
+      scoring_rubric: |
+        1.0: 상황에 맞는 최적 모드
+        0.6: 작동하지만 차선책
+        0.3: 비효율적 모드
+        0.0: 잘못된 모드
+
+    - id: "ec:parameter-binding"
+      name: "Parameter Binding"
+      principle_id: "p:reasoning"
+      description: "Cypher 파라미터를 정확히 바인딩했는가"
+      weight: 0.20
+      scoring_rubric: |
+        1.0: 모든 파라미터 정확
+        0.5: 일부 파라미터 오류
+        0.0: 파라미터 바인딩 실패
+
+  # ============================================================
+  # Graph Retriever Criteria (2 criteria)
+  # ============================================================
+  graph_retriever:
+    - id: "ec:query-execution"
+      name: "Query Execution"
+      principle_id: "p:tool-use"
+      description: "Cypher 쿼리가 성공적으로 실행되었는가"
+      weight: 0.60
+      scoring_rubric: |
+        1.0: 쿼리 성공, 결과 있음
+        0.5: 쿼리 성공, 결과 없음 (데이터 없음)
+        0.0: 쿼리 실패/오류
+
+    - id: "ec:result-relevance"
+      name: "Result Relevance"
+      principle_id: "p:perception"
+      description: "검색 결과가 쿼리에 관련 있는가"
+      weight: 0.40
+      scoring_rubric: |
+        1.0: 모든 결과가 관련됨
+        0.7: 대부분 관련됨
+        0.4: 일부만 관련됨
+        0.0: 관련 없는 결과
+
+# Global settings
+settings:
+  min_composite_score: 0.6  # Below this triggers review
+  evaluation_sample_rate: 1.0  # 1.0 = evaluate all, 0.1 = 10% sampling
+  max_response_length: 500  # Truncate response for storage
+  feedback_enabled: true  # Generate LLM feedback

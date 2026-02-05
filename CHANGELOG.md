@@ -290,9 +290,9 @@ poetry run python scripts/test_agent.py --query "What is ReAct?"             # h
 - If `OPENAI_API_KEY` is not set → `get_embedding_client()` returns `None` → vector search skipped
 
 #### Known Limitations
-- Embedding model hardcoded to OpenAI `text-embedding-3-small`; should follow YAML-driven provider pattern in future
+- ~~Embedding model hardcoded to OpenAI `text-embedding-3-small`~~ → **Fixed in v0.4.1** (YAML-driven provider pattern)
 - ChromaDB telemetry warnings (`capture() takes 1 positional argument`) are harmless
-- No incremental embedding update — `generate_embeddings.py` re-embeds all nodes on each run
+- ~~No incremental embedding update~~ → **Fixed in v0.4.1** (hash-based change detection)
 
 ### FastAPI REST Endpoints
 
@@ -327,17 +327,348 @@ poetry run uvicorn src.api.app:app --reload --port 8000
 
 ---
 
+## [0.4.1] - 2026-02-03
+
+### Vector DB Refactor & Embedding Abstraction
+
+#### Added
+
+**Embedding Provider Abstraction** (`src/retrieval/providers/`)
+- `EmbeddingProvider` abstract base class in `base.py`
+- `OpenAIEmbeddingProvider` implementation in `openai.py`
+- YAML-driven provider router in `router.py`
+- Configure via `EMBEDDING_PROVIDER` and `EMBEDDING_MODEL` env vars
+- Backward compatible: `get_embedding_client()` still works
+
+**Incremental Embedding Updates** (`scripts/generate_embeddings.py`)
+- Hash-based change detection (`data/embedding_hashes.json`)
+- `--reset` flag for full rebuild (clears collection and hashes)
+- `--dry-run` flag to preview changes without embedding
+- Only re-embeds changed nodes (cost saving)
+
+**Web Results Persistence** (`src/agents/nodes/web_search.py`)
+- Web search results now persisted to ChromaDB
+- ID format: `web:{url_hash}:{chunk_index}`
+- Metadata includes `search_query` for tracking
+
+#### Changed
+
+**Unified Node Text with Relationship Context** (`scripts/generate_embeddings.py`)
+- Complete rewrite: nodes now embedded as unified text with relationship context
+- Cypher queries fetch ADDRESSES, IMPLEMENTS relationships for richer context
+- Text includes: name, description, family/type, principles addressed, implementations
+- ID schema changed: `kg:{node_id}` (was `{node_id}:{field}`)
+
+**Extended Metadata Schema** (all vector entries)
+- `source_type`: `kg_node` | `web_search` | `paper`
+- `source_id`: node_id for KG, URL hash for web
+- `source_url`: URL for web results
+- `collected_at`: ISO timestamp
+- `collector`: script/agent that created entry
+- `node_id`, `node_label`: KG linkage
+- `title`, `chunk_index`, `total_chunks`
+
+**Vector Store Updates** (`src/retrieval/vector_store.py`)
+- New collection: `kg_nodes_v2` (migration from old schema)
+- `VectorSearchResult` dataclass updated for unified schema
+- Added `reset()`, `delete_by_prefix()`, `upsert()` methods
+- Metadata filtering support in `query()`
+
+**API Schema Updates** (`src/api/schemas.py`)
+- `VectorResultItem` updated with unified fields
+
+**Config** (`config/providers.yaml`)
+- Added `embedding_providers` section
+- OpenAI embedding provider with SSL support
+
+#### Migration
+
+Run to regenerate embeddings with new schema:
+```bash
+poetry run python scripts/generate_embeddings.py --reset
+```
+
+---
+
+## [0.4.0] - 2026-02-03
+
+### Phase 3: Web Search Expander
+
+#### Added
+
+**Web Search Node** (`src/agents/nodes/web_search.py`)
+- Tavily API integration for web search fallback
+- Triggers on `expansion` intent OR empty KG/vector results
+- Returns top 5 results with title, URL, content, score
+
+**Conditional Pipeline Flow** (`src/agents/graph.py`)
+- Changed from linear to conditional after `retrieve_from_graph`
+- `_should_web_search()` routing function
+- Web search node only runs when needed (cost saving)
+
+**State Extension** (`src/agents/state.py`)
+- Added `web_results: Optional[list[dict]]` — Tavily search results
+- Added `web_query: Optional[str]` — query sent to Tavily
+
+**Synthesizer Updates** (`src/agents/nodes/synthesizer.py`)
+- `_format_web_results()` for LLM prompt inclusion
+- `_extract_web_sources()` for source attribution
+- Sources now include both KG and Web sources (type: "Web")
+- Confidence base 0.5 for web-only results
+
+**API Updates** (`src/api/`)
+- `WebResultItem` schema: title, url, content, score
+- `QueryResponse` extended: `web_results`, `web_query` fields
+- Routes updated to map web results to response
+
+**Dependencies**
+- Added `tavily-python = "^0.5.0"` to `pyproject.toml`
+
+#### Architecture
+
+```
+classify_intent → plan_search → retrieve_from_graph
+                                        ↓
+                              [conditional: has results?]
+                                   ↓            ↓
+                                 YES           NO (or expansion)
+                                   ↓            ↓
+                                 skip      web_search
+                                   ↓            ↓
+                                   └────────────┘
+                                         ↓
+                                  synthesize_answer
+```
+
+#### Usage
+
+```bash
+# Requires TAVILY_API_KEY in .env
+poetry run python scripts/test_agent.py --query "What are the latest agent frameworks in 2026?"
+```
+
+#### Graceful Fallback
+- If `TAVILY_API_KEY` not set → web search skipped, returns KG/vector results only
+- If all sources empty → returns "couldn't find information" message
+
+---
+
 ## [Unreleased]
 
-### Phase 3: Expansion (Planned)
-- [ ] Web Search Expander agent
-- [ ] User approval workflow UI
-- [ ] Graph visualization
+### P0 Fixes: Confidence & Intent Redesign (In Progress)
 
-### Phase 4: Critic Agent (Planned)
-- [ ] Evaluation principles and methods
-- [ ] Evaluation logic implementation
-- [ ] Guideline versioning system
+#### Added
+
+**Entity Catalog System** (`scripts/generate_entity_catalog.py`)
+- Extracts all entities from Neo4j → `data/entity_catalog.json`
+- Includes: principles, methods, implementations, standards
+- Builds alias map (CoT → m:cot, RAG → m:rag, etc.)
+- Used by intent classifier for dynamic entity context
+
+**`out_of_scope` Intent** (`src/agents/nodes/intent_classifier.py`, `src/agents/state.py`)
+- New intent type for queries outside Agentic AI domain
+- Examples: "What's the weather?", "Tell me a joke"
+- Returns polite rejection message, confidence=0.0
+
+#### Changed
+
+**Intent Classifier Redesign** (`src/agents/nodes/intent_classifier.py`)
+- Loads entity catalog dynamically into prompt
+- Prompt now shows actual KG entities (not hardcoded list)
+- Added `_normalize_entities()` to map aliases → canonical IDs
+- Fallback extraction now uses catalog when available
+- 5 intents: lookup, path, comparison, expansion, out_of_scope
+
+**Confidence Calculation Redesign** (`src/agents/nodes/synthesizer.py`)
+- **OLD**: Count-based (5+ results = 0.9, etc.) — BROKEN
+- **NEW**: Multi-dimensional weighted scoring:
+  - Entity match (0.3): Did we find requested entities?
+  - Intent fulfillment (0.3): Does result structure match intent?
+  - Data completeness (0.2): Are key fields populated?
+  - Vector similarity (0.2): Semantic relevance score
+- New helper functions: `_calc_entity_match_score()`, `_calc_intent_fulfillment_score()`, `_calc_completeness_score()`, `_calc_vector_similarity_score()`
+
+**State Schema** (`src/agents/state.py`)
+- Added `out_of_scope` to intent Literal type
+
+#### Verified
+- [x] Entity catalog generated: 11 principles, 33 methods, 16 implementations, 3 standards, 92 aliases
+- [x] Intent classification: lookup, comparison, expansion, out_of_scope all working
+- [x] Confidence scoring: ReAct lookup=0.96, comparison=0.90, expansion=0.69, out_of_scope=0.0
+- [x] Entity normalization: "LangChain" → `impl:langchain`, "ReAct" → `m:react`
+
+---
+
+### P1 Fixes: YAML Externalization & UI Improvements ✅
+
+#### Added
+
+**Intent Configuration** (`config/intents.yaml`)
+- 11 intent types: lookup, exploration, path_trace, aggregation, comparison, recommendation, coverage_check, definition, update, expansion, out_of_scope
+- Each intent has: description, examples, entity_count
+- Backward compatibility aliases (path → exploration)
+
+**Cypher Templates Configuration** (`config/cypher_templates.yaml`)
+- Entity type detection patterns (Principle, Implementation, Method, Standard)
+- 20+ Cypher templates organized by intent
+- New templates: lookup_standard, path_trace_*, comparison_methods, comparison_principles, aggregation_*, coverage_check_*, definition_*
+- Default template fallbacks per intent
+
+#### Changed
+
+**Search Planner** (`src/agents/nodes/search_planner.py`)
+- Loads templates from YAML instead of hardcoded dict
+- `_load_config()`: Lazy-loads YAML config
+- `_detect_entity_type()`: Uses config patterns
+- `_select_template()`: Matches intent + entity types to template
+- Supports new intents: exploration, path_trace, aggregation, coverage_check, definition
+
+**Intent Classifier** (`src/agents/nodes/intent_classifier.py`)
+- Loads intent definitions from `config/intents.yaml`
+- `_load_intents_config()`: Lazy-loads YAML config
+- `_build_intent_list()`: Builds prompt dynamically from config
+- `_extract_intent()`: Supports all config-defined intents
+- Updated fallback heuristics for new intents (aggregation, coverage_check, definition)
+
+**Agent State** (`src/agents/state.py`)
+- Intent type changed from Literal to `str` to support dynamic intents from config
+
+**Streamlit UI** (`src/ui/app.py`)
+- Example query buttons now auto-execute (not just add to chat)
+- Web results in collapsible expander with smaller font
+- "Add to KG" panel moved to bottom in expander
+- Custom CSS for compact web result display
+
+#### Verified
+- Aggregation: "How many methods address each principle?" → 11 results
+- Coverage check: "Which methods are missing paper references?" → 29 results
+- New intents working with YAML-driven prompt and templates
+
+### Phase 3b: Expansion ✅ Complete
+- [x] User approval workflow UI for adding web results to KG
+- [x] Graph visualization with streamlit-agraph
+
+#### Added
+
+**Graph Visualization** (`src/ui/app.py`)
+- Interactive knowledge graph visualization using `streamlit-agraph`
+- Sidebar toggle to show/hide graph view
+- Two view modes: "Overview (P→M→I)" and "From Last Query"
+- Node colors by type (Principle=red, Method=teal, Implementation=blue, Standard=green)
+- Configurable max nodes slider (10-100)
+- Legend and node count display
+
+**Helper Functions**
+- `fetch_kg_subgraph()`: Fetches graph data from Neo4j (overview or centered on entity)
+- `build_graph_from_results()`: Builds graph nodes/edges from query results
+
+**Dependencies**
+- Added `streamlit-agraph` to `pyproject.toml`
+
+#### Fixed
+- Graph visualization now works correctly — added `_serialize_neo4j_results()` helper to convert raw Neo4j Node/Relationship objects to plain dicts before rendering
+
+### Phase 4: Critic Agent ✅ Implemented
+
+#### Added
+
+**Evaluation Schema** (`neo4j/schema.cypher`)
+- EvaluationCriteria, Evaluation constraints and indexes
+- FailurePattern, PromptVersion schema (Phase 5 preparation)
+- DERIVED_FROM relationship (EvaluationCriteria → Principle)
+
+**Critic Module** (`src/critic/`)
+- `criteria.py` — Load evaluation criteria from YAML, caching, settings
+- `scorer.py` — LLM-based scoring with rubrics, heuristic fallback
+- `evaluator.py` — CriticEvaluator class with `evaluate()`, `evaluate_pipeline()`, `save_to_neo4j()`
+- `__init__.py` — Module exports
+
+**Evaluation Criteria Configuration** (`config/evaluation_criteria.yaml`)
+- 15 criteria derived from 11 Principles:
+  - Synthesizer (7): answer-relevance, source-citation, factual-accuracy, reasoning-steps, completeness, conciseness, safety
+  - Intent Classifier (3): intent-accuracy, entity-extraction, scope-detection
+  - Search Planner (3): template-selection, retrieval-mode, parameter-binding
+  - Graph Retriever (2): query-execution, result-relevance
+- Scoring rubrics with 0.0-1.0 scale
+- Configurable weights per criterion
+
+**Seed Data** (`neo4j/seed_evaluation.cypher`)
+- MERGE statements for 15 EvaluationCriteria nodes
+- Creates DERIVED_FROM relationships to Principles
+
+**Pipeline Integration** (`src/agents/graph.py`)
+- Added `evaluate: bool = False` parameter to `run_agent()`
+- Post-pipeline evaluation hook (non-blocking)
+- `_run_evaluation()` helper function
+
+**API Endpoints** (`src/api/routes.py`)
+- `GET /evaluations` — Query evaluation results (filter by agent, min_score, limit)
+- `GET /evaluation-criteria` — List all criteria (filter by agent)
+
+**Streamlit UI** (`src/ui/app.py`)
+- "Enable Critic Evaluation" toggle in sidebar
+- Evaluation scores displayed in response expander
+- Per-criterion score breakdown
+- Color-coded composite scores (green/orange/red)
+
+**Scripts**
+- `scripts/seed_evaluation_criteria.py` — Seed EvaluationCriteria to Neo4j
+
+#### Architecture
+
+```
+Pipeline Execution → synthesize_answer
+                            ↓
+                    [if evaluate=True]
+                            ↓
+                    CriticEvaluator.evaluate_pipeline()
+                            ↓
+                    [for each agent: synthesizer, intent_classifier,
+                     search_planner, graph_retriever]
+                            ↓
+                    score_criterion() → composite_score
+                            ↓
+                    [optional: save_to_neo4j()]
+```
+
+### Phase 4 + P2: Document Pipeline ✅ Implemented
+
+#### Added
+
+**Document Ingestion Module** (`src/ingestion/`)
+- `crawler.py` — DocumentCrawler for URL and PDF extraction
+  - `crawl_url()`: BeautifulSoup-based web scraping
+  - `crawl_pdf()`: PyMuPDF text extraction
+  - Auto-detection of doc_type (paper, article, documentation)
+  - Year and author extraction heuristics
+- `chunker.py` — DocumentChunker for embedding
+  - Paragraph and sentence-based chunking
+  - Configurable chunk_size, overlap, min_chunk_size
+  - Chunk dataclass with metadata
+- `linker.py` — DocumentLinker for KG relationship extraction
+  - LLM-based entity extraction (Methods, Implementations mentioned)
+  - Relationship types: PROPOSES, EVALUATES, DESCRIBES, USES, MENTIONS
+  - Heuristic fallback when LLM unavailable
+  - `save_document_to_kg()` for Neo4j persistence
+
+**CLI Script** (`scripts/ingest_document.py`)
+- `--url URL` or `--pdf PATH` input
+- `--approve-all` for batch processing
+- `--dry-run` preview mode
+- `--embed` for ChromaDB chunk embedding
+- Interactive link approval
+
+**Streamlit Upload UI** (`src/ui/app.py`)
+- "Add Document" expander in sidebar
+- PDF upload and URL input tabs
+- Document processing panel showing:
+  - Crawl results (title, type, content length)
+  - Proposed KG links with checkboxes
+  - Confidence scores
+- "Save to KG" with optional embedding
+
+**Dependencies** (`pyproject.toml`)
+- Added `beautifulsoup4 = "^4.12.0"` for URL crawling
 
 ### Phase 5: Prompt Optimizer (Planned)
 - [ ] Failure Analyzer

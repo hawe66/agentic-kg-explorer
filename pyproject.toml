@@ -26,6 +26,10 @@ pyyaml = "^6.0"
 chromadb = ">=0.5.0,<1.0.0"
 posthog = ">=2.4.0,<4.0.0"
 streamlit = "^1.40.0"
+tavily-python = "^0.5.0"
+pymupdf = "^1.24.0"
+streamlit-agraph = "^0.0.45"
+beautifulsoup4 = "^4.12.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.0"

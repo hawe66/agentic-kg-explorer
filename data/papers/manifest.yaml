@@ -1,0 +1,81 @@
+# Document Ingestion Manifest
+# ---------------------------
+# Add papers/docs to this file to ingest them into the knowledge graph.
+# Supports: PDF (.pdf), Markdown (.md), Text (.txt)
+#
+# Each entry creates:
+#   - Document node in Neo4j
+#   - Optional Method nodes (if proposes is specified)
+#   - VDB embeddings for full text chunks
+#
+# Usage:
+#   poetry run python scripts/ingest_papers.py
+#   poetry run python scripts/ingest_papers.py --dry-run
+
+papers:
+  - file: react-2022.pdf
+    doc_id: doc:react-2022
+    title: "ReAct: Synergizing Reasoning and Acting in Language Models"
+    authors:
+      - Shunyu Yao
+      - Jeffrey Zhao
+      - Dian Yu
+      - Nan Du
+      - Izhak Shafran
+      - Karthik Narasimhan
+      - Yuan Cao
+    year: 2022
+    venue: ICLR 2023
+    doc_type: paper
+    abstract: >
+      While large language models (LLMs) have demonstrated impressive performance
+      across tasks in language understanding and interactive decision making, their
+      abilities for reasoning and acting are studied separately. This paper explores
+      the use of LLMs to generate both reasoning traces and task-specific actions in
+      an interleaved manner, allowing for greater synergy between the two.
+    proposes: []
+
+  - file: NeurIPS-2019-learning-from-trajectories-via-subgoal-discovery-Paper.pdf
+    doc_id: doc:subgoal-discovery-2019
+    title: "Learning from Trajectories via Subgoal Discovery"
+    authors:
+      - Ahmed Akakzia
+      - Cédric Colas
+      - Pierre-Yves Oudeyer
+      - Mohamed Chetouani
+      - Olivier Sigaud
+    year: 2019
+    venue: NeurIPS 2019
+    doc_type: paper
+    abstract: >
+      This paper proposes a method for learning from expert trajectories by
+      discovering subgoals that decompose complex tasks into simpler subtasks.
+    proposes:
+      - id: m:subgoal-discovery
+        name: Subgoal Discovery
+        description: >
+          Learning to decompose complex tasks into subgoals from expert trajectories.
+          Enables hierarchical reinforcement learning by identifying key states.
+        method_family: agent_loop_pattern
+        method_type: search_planning_algo
+        granularity: atomic
+        addresses:
+          - principle: p:planning
+            role: primary
+            weight: 1.0
+          - principle: p:learning
+            role: secondary
+            weight: 0.7
+
+  - file: langgraph_docs_graphapi.md
+    doc_id: doc:langgraph-graphapi
+    title: "LangGraph Graph API Documentation"
+    authors:
+      - LangChain Team
+    year: 2024
+    venue: LangChain Docs
+    doc_type: documentation
+    abstract: >
+      Official documentation for LangGraph's Graph API, covering StateGraph,
+      nodes, edges, state management, reducers, and compilation.
+    proposes: []

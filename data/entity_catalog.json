@@ -1,0 +1,610 @@
+{
+  "principles": [
+    {
+      "id": "p:grounding",
+      "name": "Grounding"
+    },
+    {
+      "id": "p:guardrails",
+      "name": "Guardrails"
+    },
+    {
+      "id": "p:learning",
+      "name": "Learning"
+    },
+    {
+      "id": "p:memory",
+      "name": "Memory"
+    },
+    {
+      "id": "p:multi-agent",
+      "name": "Multi-Agent Collaboration"
+    },
+    {
+      "id": "p:perception",
+      "name": "Perception"
+    },
+    {
+      "id": "p:planning",
+      "name": "Planning"
+    },
+    {
+      "id": "p:reasoning",
+      "name": "Reasoning"
+    },
+    {
+      "id": "p:reflection",
+      "name": "Reflection"
+    },
+    {
+      "id": "p:tool-use",
+      "name": "Tool Use & Action"
+    },
+    {
+      "id": "p:tracing",
+      "name": "Tracing"
+    }
+  ],
+  "methods": [
+    {
+      "id": "m:camel",
+      "name": "CAMEL",
+      "family": "multi_agent_coordination",
+      "maturity": "research",
+      "principles": [
+        "Multi-Agent Collaboration"
+      ]
+    },
+    {
+      "id": "m:critic",
+      "name": "CRITIC",
+      "family": "reflection_verification",
+      "maturity": "research",
+      "principles": [
+        "Tool Use & Action",
+        "Reflection"
+      ]
+    },
+    {
+      "id": "m:cot",
+      "name": "Chain-of-Thought",
+      "family": "prompting_decoding",
+      "maturity": "production",
+      "principles": [
+        "Reasoning"
+      ]
+    },
+    {
+      "id": "m:cove",
+      "name": "Chain-of-Verification",
+      "family": "reflection_verification",
+      "maturity": "research",
+      "principles": [
+        "Reasoning",
+        "Reflection"
+      ]
+    },
+    {
+      "id": "m:cot-sc",
+      "name": "CoT + Self-Consistency",
+      "family": "prompting_decoding",
+      "maturity": "production",
+      "principles": [
+        "Reasoning"
+      ]
+    },
+    {
+      "id": "m:content-moderation",
+      "name": "Content Moderation",
+      "family": "safety_control",
+      "maturity": "production",
+      "principles": [
+        "Guardrails"
+      ]
+    },
+    {
+      "id": "m:dpo",
+      "name": "DPO",
+      "family": "training_alignment",
+      "maturity": "production",
+      "principles": [
+        "Learning"
+      ]
+    },
+    {
+      "id": "m:got",
+      "name": "Graph-of-Thoughts",
+      "family": "prompting_decoding",
+      "maturity": "research",
+      "principles": [
+        "Planning",
+        "Reasoning"
+      ]
+    },
+    {
+      "id": "m:graphrag",
+      "name": "GraphRAG",
+      "family": "retrieval_grounding",
+      "maturity": "production",
+      "principles": [
+        "Grounding"
+      ]
+    },
+    {
+      "id": "m:hierarchical-reinforcement-learning",
+      "name": "Hierarchical Reinforcement Learning",
+      "family": "",
+      "maturity": null,
+      "principles": [
+        "Planning",
+        "Learning"
+      ]
+    },
+    {
+      "id": "m:hipporag",
+      "name": "HippoRAG",
+      "family": "retrieval_grounding",
+      "maturity": "research",
+      "principles": [
+        "Memory",
+        "Grounding"
+      ]
+    },
+    {
+      "id": "m:icl",
+      "name": "In-Context Learning",
+      "family": "prompting_decoding",
+      "maturity": "standardized",
+      "principles": [
+        "Learning"
+      ]
+    },
+    {
+      "id": "m:input-validation",
+      "name": "Input Validation",
+      "family": "safety_control",
+      "maturity": "production",
+      "principles": [
+        "Guardrails"
+      ]
+    },
+    {
+      "id": "m:lats",
+      "name": "LATS",
+      "family": "agent_loop_pattern",
+      "maturity": "research",
+      "principles": [
+        "Planning",
+        "Reflection"
+      ]
+    },
+    {
+      "id": "m:llm-observability",
+      "name": "LLM Observability",
+      "family": "observability_tracing",
+      "maturity": "production",
+      "principles": [
+        "Tracing"
+      ]
+    },
+    {
+      "id": "m:lightrag",
+      "name": "LightRAG",
+      "family": "retrieval_grounding",
+      "maturity": "research",
+      "principles": [
+        "Grounding"
+      ]
+    },
+    {
+      "id": "m:memgpt",
+      "name": "MemGPT",
+      "family": "memory_system",
+      "maturity": "production",
+      "principles": [
+        "Memory",
+        "Planning"
+      ]
+    },
+    {
+      "id": "m:metagpt",
+      "name": "MetaGPT",
+      "family": "multi_agent_coordination",
+      "maturity": "production",
+      "principles": [
+        "Planning",
+        "Multi-Agent Collaboration"
+      ]
+    },
+    {
+      "id": "m:multimodal-fusion",
+      "name": "Multimodal Fusion",
+      "family": "prompting_decoding",
+      "maturity": "production",
+      "principles": [
+        "Perception"
+      ]
+    },
+    {
+      "id": "m:output-validation",
+      "name": "Output Validation",
+      "family": "safety_control",
+      "maturity": "production",
+      "principles": [
+        "Guardrails"
+      ]
+    },
+    {
+      "id": "m:raptor",
+      "name": "RAPTOR",
+      "family": "retrieval_grounding",
+      "maturity": "research",
+      "principles": [
+        "Grounding"
+      ]
+    },
+    {
+      "id": "m:rlhf",
+      "name": "RLHF",
+      "family": "training_alignment",
+      "maturity": "standardized",
+      "principles": [
+        "Learning"
+      ]
+    },
+    {
+      "id": "m:react",
+      "name": "ReAct",
+      "family": "agent_loop_pattern",
+      "maturity": "production",
+      "principles": [
+        "Reasoning",
+        "Tool Use & Action"
+      ]
+    },
+    {
+      "id": "m:rewoo",
+      "name": "ReWOO",
+      "family": "agent_loop_pattern",
+      "maturity": "research",
+      "principles": [
+        "Planning",
+        "Tool Use & Action"
+      ]
+    },
+    {
+      "id": "m:reflexion",
+      "name": "Reflexion",
+      "family": "reflection_verification",
+      "maturity": "research",
+      "principles": [
+        "Memory",
+        "Reflection"
+      ]
+    },
+    {
+      "id": "m:rag",
+      "name": "Retrieval-Augmented Generation",
+      "family": "retrieval_grounding",
+      "maturity": "production",
+      "principles": [
+        "Tool Use & Action",
+        "Grounding"
+      ]
+    },
+    {
+      "id": "m:self-consistency",
+      "name": "Self-Consistency",
+      "family": "prompting_decoding",
+      "maturity": "production",
+      "principles": [
+        "Reasoning"
+      ]
+    },
+    {
+      "id": "m:self-refine",
+      "name": "Self-Refine",
+      "family": "reflection_verification",
+      "maturity": "production",
+      "principles": [
+        "Reflection"
+      ]
+    },
+    {
+      "id": "m:span-tracing",
+      "name": "Span-based Tracing",
+      "family": "observability_tracing",
+      "maturity": "production",
+      "principles": [
+        "Tracing"
+      ]
+    },
+    {
+      "id": "m:subgoal-discovery",
+      "name": "Subgoal Discovery",
+      "family": "agent_loop_pattern",
+      "maturity": null,
+      "principles": [
+        "Planning",
+        "Learning"
+      ]
+    },
+    {
+      "id": "m:temporal-kg-memory",
+      "name": "Temporal KG Memory",
+      "family": "memory_system",
+      "maturity": "research",
+      "principles": [
+        "Memory"
+      ]
+    },
+    {
+      "id": "m:tot",
+      "name": "Tree-of-Thoughts",
+      "family": "prompting_decoding",
+      "maturity": "research",
+      "principles": [
+        "Planning",
+        "Reasoning"
+      ]
+    },
+    {
+      "id": "m:workflow-graph",
+      "name": "Workflow Graph Orchestration",
+      "family": "workflow_orchestration",
+      "maturity": "production",
+      "principles": [
+        "Planning"
+      ]
+    }
+  ],
+  "implementations": [
+    {
+      "id": "impl:autogen",
+      "name": "AutoGen",
+      "category": null,
+      "methods": [
+        "CAMEL"
+      ]
+    },
+    {
+      "id": "impl:crewai",
+      "name": "CrewAI",
+      "category": null,
+      "methods": [
+        "MetaGPT"
+      ]
+    },
+    {
+      "id": "impl:guardrails-ai",
+      "name": "Guardrails AI",
+      "category": null,
+      "methods": [
+        "Input Validation",
+        "Output Validation"
+      ]
+    },
+    {
+      "id": "impl:llm-guard",
+      "name": "LLM Guard",
+      "category": null,
+      "methods": [
+        "Input Validation",
+        "Content Moderation"
+      ]
+    },
+    {
+      "id": "impl:langchain",
+      "name": "LangChain",
+      "category": null,
+      "methods": [
+        "ReAct",
+        "Retrieval-Augmented Generation"
+      ]
+    },
+    {
+      "id": "impl:langgraph",
+      "name": "LangGraph",
+      "category": null,
+      "methods": [
+        "ReAct",
+        "Workflow Graph Orchestration"
+      ]
+    },
+    {
+      "id": "impl:langsmith",
+      "name": "LangSmith",
+      "category": null,
+      "methods": [
+        "Span-based Tracing",
+        "LLM Observability"
+      ]
+    },
+    {
+      "id": "impl:langfuse",
+      "name": "Langfuse",
+      "category": null,
+      "methods": [
+        "Span-based Tracing",
+        "LLM Observability"
+      ]
+    },
+    {
+      "id": "impl:llamaguard",
+      "name": "LlamaGuard",
+      "category": null,
+      "methods": [
+        "Content Moderation"
+      ]
+    },
+    {
+      "id": "impl:llamaindex",
+      "name": "LlamaIndex",
+      "category": null,
+      "methods": [
+        "Retrieval-Augmented Generation"
+      ]
+    },
+    {
+      "id": "impl:mem0",
+      "name": "Mem0",
+      "category": null,
+      "methods": [
+        "MemGPT"
+      ]
+    },
+    {
+      "id": "impl:nemo-guardrails",
+      "name": "NeMo Guardrails",
+      "category": null,
+      "methods": [
+        "Input Validation",
+        "Content Moderation"
+      ]
+    },
+    {
+      "id": "impl:openai-agents-sdk",
+      "name": "OpenAI Agents SDK",
+      "category": null,
+      "methods": [
+        "ReAct"
+      ]
+    },
+    {
+      "id": "impl:semantic-kernel",
+      "name": "Semantic Kernel",
+      "category": null,
+      "methods": [
+        "Workflow Graph Orchestration"
+      ]
+    },
+    {
+      "id": "impl:zep",
+      "name": "Zep",
+      "category": null,
+      "methods": [
+        "Temporal KG Memory"
+      ]
+    },
+    {
+      "id": "impl:ms-graphrag",
+      "name": "microsoft/graphrag",
+      "category": null,
+      "methods": [
+        "GraphRAG"
+      ]
+    }
+  ],
+  "standards": [
+    {
+      "id": "std:a2a",
+      "name": "Agent2Agent Protocol",
+      "versions": []
+    },
+    {
+      "id": "std:mcp",
+      "name": "Model Context Protocol",
+      "versions": []
+    },
+    {
+      "id": "std:otel-genai",
+      "name": "OpenTelemetry GenAI Semantic Conventions",
+      "versions": []
+    }
+  ],
+  "aliases": {
+    "communicative agents": "m:camel",
+    "camel": "m:camel",
+    "critic": "m:critic",
+    "cot": "m:cot",
+    "chain-of-thought": "m:cot",
+    "cove": "m:cove",
+    "chain-of-verification": "m:cove",
+    "cot-sc": "m:cot-sc",
+    "cot + self-consistency": "m:cot-sc",
+    "safety filtering": "m:content-moderation",
+    "content moderation": "m:content-moderation",
+    "direct preference optimization": "m:dpo",
+    "dpo": "m:dpo",
+    "got": "m:got",
+    "graph-of-thoughts": "m:got",
+    "graph-based rag": "m:graphrag",
+    "graphrag": "impl:ms-graphrag",
+    "hierarchical reinforcement learning": "m:hierarchical-reinforcement-learning",
+    "hipporag": "m:hipporag",
+    "icl": "m:icl",
+    "few-shot learning": "m:icl",
+    "in-context learning": "m:icl",
+    "prompt injection defense": "m:input-validation",
+    "input validation": "m:input-validation",
+    "language agent tree search": "m:lats",
+    "lats": "m:lats",
+    "genai monitoring": "m:llm-observability",
+    "llm observability": "m:llm-observability",
+    "lightrag": "m:lightrag",
+    "memgpt": "m:memgpt",
+    "metagpt": "m:metagpt",
+    "cross-modal integration": "m:multimodal-fusion",
+    "multimodal fusion": "m:multimodal-fusion",
+    "structured output enforcement": "m:output-validation",
+    "output validation": "m:output-validation",
+    "raptor": "m:raptor",
+    "reinforcement learning from human feedback": "m:rlhf",
+    "rlhf": "m:rlhf",
+    "reason+act": "m:react",
+    "react": "m:react",
+    "reasoning without observation": "m:rewoo",
+    "rewoo": "m:rewoo",
+    "reflexion": "m:reflexion",
+    "rag": "m:rag",
+    "retrieval-augmented generation": "m:rag",
+    "sc": "m:self-consistency",
+    "self-consistency": "m:self-consistency",
+    "self-refine": "m:self-refine",
+    "distributed tracing": "m:span-tracing",
+    "span-based tracing": "m:span-tracing",
+    "subgoal discovery": "m:subgoal-discovery",
+    "graphiti": "m:temporal-kg-memory",
+    "temporal kg memory": "m:temporal-kg-memory",
+    "tot": "m:tot",
+    "tree-of-thoughts": "m:tot",
+    "state graph": "m:workflow-graph",
+    "dag workflow": "m:workflow-graph",
+    "workflow graph orchestration": "m:workflow-graph",
+    "autogen": "impl:autogen",
+    "crewai": "impl:crewai",
+    "guardrails ai": "impl:guardrails-ai",
+    "llm guard": "impl:llm-guard",
+    "langchain": "impl:langchain",
+    "langgraph": "impl:langgraph",
+    "langsmith": "impl:langsmith",
+    "langfuse": "impl:langfuse",
+    "llama guard": "impl:llamaguard",
+    "llamaguard": "impl:llamaguard",
+    "gpt index": "impl:llamaindex",
+    "llamaindex": "impl:llamaindex",
+    "embedchain memory": "impl:mem0",
+    "mem0": "impl:mem0",
+    "nemo guardrails": "impl:nemo-guardrails",
+    "swarm": "impl:openai-agents-sdk",
+    "openai agents sdk": "impl:openai-agents-sdk",
+    "sk": "impl:semantic-kernel",
+    "semantic kernel": "impl:semantic-kernel",
+    "zep": "impl:zep",
+    "microsoft/graphrag": "impl:ms-graphrag",
+    "a2a": "std:a2a",
+    "agent2agent protocol": "std:a2a",
+    "mcp": "std:mcp",
+    "model context protocol": "std:mcp",
+    "otel genai semconv": "std:otel-genai",
+    "opentelemetry genai semantic conventions": "std:otel-genai",
+    "chain of thought": "m:cot",
+    "retrieval augmented generation": "m:rag",
+    "tree of thoughts": "m:tot",
+    "otel": "std:otel",
+    "opentelemetry": "std:otel",
+    "agent to agent": "std:a2a",
+    "agent-to-agent": "std:a2a"
+  },
+  "generated_at": "2026-02-04T01:14:22.303357"
+}
