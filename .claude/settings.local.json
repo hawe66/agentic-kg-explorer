@@ -8,10 +8,11 @@
       "Bash(C:/Users/조영하/AppData/Local/pypoetry/Cache/virtualenvs/agentic-kg-explorer-Vxs5hbQW-py3.11/Scripts/python.exe scripts/load_sample_data.py --clear)",
       "Bash(find:*)",
       "Bash(poetry run python:*)",
-      "Bash(git checkout:*)",
-      "Bash(git merge:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(python test_ssl.py:*)",
+      "Bash(openssl x509:*)",
+      "Bash(curl:*)",
+      "Bash(python:*)",
+      "Bash(git stash:*)"
     ]
   }
 }

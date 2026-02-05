@@ -1,0 +1,138 @@
+# Test Queries for Prompt Optimization
+# Used by TestRunner to evaluate prompt variants
+#
+# Each query can have:
+#   - query: The test query string (required)
+#   - expected_intent: Expected intent classification
+#   - expected_entities: List of expected entity IDs
+#   - expected_template: Expected Cypher template (for search_planner)
+#   - expected_retrieval: Expected retrieval mode (graph_only/vector_first/hybrid)
+#   - min_confidence: Minimum acceptable confidence score (default: 0.5)
+#   - min_sources: Minimum number of sources (default: 0)
+#   - min_results: Minimum KG results (default: 0)
+#   - no_error: Should not have error (default: true)
+
+synthesizer:
+  # Lookup queries - should cite sources
+  - query: "What is ReAct?"
+    expected_intent: lookup
+    expected_entities: ["m:react"]
+    min_confidence: 0.7
+    min_sources: 1
+
+  - query: "What is Chain-of-Thought prompting?"
+    expected_intent: lookup
+    expected_entities: ["m:cot"]
+    min_confidence: 0.7
+
+  - query: "Describe the RAG method"
+    expected_intent: lookup
+    expected_entities: ["m:rag"]
+    min_sources: 1
+
+  # Path queries - should show relationships
+  - query: "What methods address the Planning principle?"
+    expected_intent: path
+    min_results: 3
+    min_confidence: 0.6
+
+  - query: "Which implementations support ReAct?"
+    expected_intent: path
+    expected_entities: ["m:react"]
+    min_results: 1
+
+  # Comparison queries - should compare entities
+  - query: "Compare LangChain and CrewAI"
+    expected_intent: comparison
+    expected_entities: ["impl:langchain", "impl:crewai"]
+    min_confidence: 0.6
+
+  - query: "What's the difference between CoT and ReAct?"
+    expected_intent: comparison
+    expected_entities: ["m:cot", "m:react"]
+
+  # Aggregation queries
+  - query: "How many methods address each principle?"
+    expected_intent: aggregation
+    min_results: 5
+
+  # Out of scope
+  - query: "What's the weather today?"
+    expected_intent: out_of_scope
+    min_confidence: 0.0
+
+intent_classifier:
+  # Clear lookup
+  - query: "What is CoT?"
+    expected_intent: lookup
+    expected_entities: ["m:cot"]
+
+  - query: "Tell me about LangChain"
+    expected_intent: lookup
+    expected_entities: ["impl:langchain"]
+
+  # Path/exploration
+  - query: "What methods does LangChain implement?"
+    expected_intent: path
+    expected_entities: ["impl:langchain"]
+
+  - query: "Which principles does ReAct address?"
+    expected_intent: path
+    expected_entities: ["m:react"]
+
+  # Aggregation
+  - query: "How many implementations are there?"
+    expected_intent: aggregation
+
+  - query: "Count methods by family"
+    expected_intent: aggregation
+
+  # Comparison
+  - query: "Compare AutoGen and CrewAI"
+    expected_intent: comparison
+    expected_entities: ["impl:autogen", "impl:crewai"]
+
+  # Out of scope detection
+  - query: "What's the weather?"
+    expected_intent: out_of_scope
+
+  - query: "Tell me a joke"
+    expected_intent: out_of_scope
+
+  - query: "How do I cook pasta?"
+    expected_intent: out_of_scope
+
+search_planner:
+  # Method lookup
+  - query: "What is ReAct?"
+    expected_template: "lookup_method"
+    expected_retrieval: "hybrid"
+
+  # Implementation lookup
+  - query: "What is LangChain?"
+    expected_template: "lookup_impl"
+
+  # Path traces
+  - query: "Which frameworks implement ReAct?"
+    expected_template: "path_method_to_impl"
+
+  - query: "What methods address Planning?"
+    expected_template: "path_principle_methods"
+
+  # Aggregation
+  - query: "How many methods are there?"
+    expected_template: "aggregation_method_count"
+
+graph_retriever:
+  # Should return results
+  - query: "What is ReAct?"
+    min_results: 1
+    no_error: true
+
+  - query: "What methods address Planning?"
+    min_results: 3
+    no_error: true
+
+  # Should handle unknown entities gracefully
+  - query: "What is NonExistentMethod?"
+    no_error: true

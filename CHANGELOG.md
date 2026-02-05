@@ -670,10 +670,72 @@ Pipeline Execution → synthesize_answer
 **Dependencies** (`pyproject.toml`)
 - Added `beautifulsoup4 = "^4.12.0"` for URL crawling
 
-### Phase 5: Prompt Optimizer (Planned)
-- [ ] Failure Analyzer
-- [ ] Variant Generator
-- [ ] Test Runner with Critic integration
+### Phase 5: Prompt Optimizer ✅ Implemented
+
+#### Added
+
+**Optimizer Module** (`src/optimizer/`)
+- `models.py` — Dataclasses: FailurePattern, PromptVariant, PromptVersion, TestResult, TestQuery
+- `registry.py` — PromptRegistry for version control (create, activate, rollback)
+- `analyzer.py` — FailureAnalyzer detects recurring low scores, generates hypotheses via LLM
+- `generator.py` — VariantGenerator creates prompt variants addressing failure hypotheses
+- `runner.py` — TestRunner evaluates variants against test query suite
+
+**Test Queries Configuration** (`config/test_queries.yaml`)
+- Test queries for all 4 agents (synthesizer, intent_classifier, search_planner, graph_retriever)
+- Assertions: expected_intent, expected_entities, min_confidence, min_sources, min_results
+- Out-of-scope detection tests
+
+**CLI Scripts**
+- `scripts/analyze_failures.py` — Detect and list failure patterns
+- `scripts/run_optimization.py` — Full optimization pipeline with Gate 1 & Gate 2 prompts
+
+**Design Document** (`docs/phase5-prompt-optimizer-design.md`)
+- Full architecture with Human-in-the-Loop double gate
+- Scope clarification: LLM Prompts vs Cypher Templates (separate tracks)
+- Future extension notes for Cypher template optimization
+
+#### Architecture
+
+```
+Evaluations (Phase 4)
+        │
+        ▼ accumulate
+┌───────────────────┐
+│ Failure Analyzer  │ → FailurePattern + hypotheses
+└───────────────────┘
+        │
+        ▼ Gate 1: User reviews hypotheses
+┌───────────────────┐
+│ Variant Generator │ → 3 prompt variants
+└───────────────────┘
+        │
+        ▼
+┌───────────────────┐
+│   Test Runner     │ → Ranked by performance_delta
+└───────────────────┘
+        │
+        ▼ Gate 2: User approves best
+┌───────────────────┐
+│ Prompt Registry   │ → PromptVersion activated
+└───────────────────┘
+```
+
+#### Usage
+
+```bash
+# Analyze failures
+poetry run python scripts/analyze_failures.py --agent synthesizer
+
+# List existing patterns
+poetry run python scripts/analyze_failures.py --list
+
+# Run full optimization
+poetry run python scripts/run_optimization.py --agent synthesizer
+
+# Dry run
+poetry run python scripts/run_optimization.py --agent synthesizer --dry-run
+```
 
 ### Phase 6: Advanced Features (Planned)
 - [ ] Advanced RAG techniques

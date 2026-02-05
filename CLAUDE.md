@@ -151,17 +151,19 @@ granularity: atomic | composite
 ```
 agentic-ai-kg/
 ├── CLAUDE.md              ← 이 파일 (컨텍스트)
-├── config/                ← 설정 파일 (✅ P1, Phase 4)
+├── config/                ← 설정 파일 (✅ P1, Phase 4, Phase 5)
 │   ├── intents.yaml       ← 11개 intent 정의 + examples
 │   ├── cypher_templates.yaml ← 20+ Cypher 템플릿 (intent별)
 │   ├── providers.yaml     ← LLM/Embedding provider 설정
-│   └── evaluation_criteria.yaml ← 15개 평가 기준 (Phase 4)
+│   ├── evaluation_criteria.yaml ← 15개 평가 기준 (Phase 4)
+│   └── test_queries.yaml  ← 프롬프트 최적화용 테스트 쿼리 (Phase 5)
 ├── data/
 │   ├── entity_catalog.json ← KG 엔티티 목록 (generated)
 │   └── embedding_hashes.json ← 임베딩 변경 추적
 ├── docs/
 │   ├── schema.md          ← 전체 스키마 정의서
-│   └── phase4-critic-agent-design.md ← Critic Agent 설계 문서
+│   ├── phase4-critic-agent-design.md ← Critic Agent 설계 문서
+│   └── phase5-prompt-optimizer-design.md ← Prompt Optimizer 설계 문서
 ├── neo4j/
 │   ├── schema.cypher      ← 제약조건/인덱스 (Phase 4 schema 포함)
 │   ├── seed_data.cypher   ← 초기 데이터 (11 Principles, 33 Methods, 16 Implementations)
@@ -187,6 +189,12 @@ agentic-ai-kg/
 │   │   ├── crawler.py     ← URL/PDF 텍스트 추출
 │   │   ├── chunker.py     ← 문서 청킹
 │   │   └── linker.py      ← Document → KG 관계 추출
+│   ├── optimizer/         ← Prompt Optimizer 모듈 (✅ Phase 5)
+│   │   ├── models.py      ← FailurePattern, PromptVariant, PromptVersion
+│   │   ├── analyzer.py    ← 실패 패턴 탐지 + LLM 가설 생성
+│   │   ├── generator.py   ← 프롬프트 변형 생성
+│   │   ├── runner.py      ← 테스트 실행 + 평가
+│   │   └── registry.py    ← 프롬프트 버전 관리
 │   ├── retrieval/         ← 벡터 검색 모듈
 │   │   ├── providers/     ← Embedding provider 추상화
 │   │   └── vector_store.py ← ChromaDB wrapper
@@ -197,7 +205,9 @@ agentic-ai-kg/
 │   ├── generate_embeddings.py     ← KG 노드 임베딩 → ChromaDB
 │   ├── test_agent.py              ← 에이전트 CLI 테스트
 │   ├── seed_evaluation_criteria.py ← EvaluationCriteria → Neo4j
-│   └── ingest_document.py         ← 문서 수집 CLI (URL/PDF)
+│   ├── ingest_document.py         ← 문서 수집 CLI (URL/PDF)
+│   ├── analyze_failures.py        ← 실패 패턴 분석 CLI (Phase 5)
+│   └── run_optimization.py        ← 프롬프트 최적화 파이프라인 CLI (Phase 5)
 ├── pyproject.toml
 └── .env.example
 ```
@@ -246,12 +256,13 @@ agentic-ai-kg/
 - [x] Local docs 업로드 UI (Streamlit PDF/URL)
 - [x] Document → KG 자동 연결 (`src/ingestion/linker.py`)
 
-### Phase 5: Prompt Optimizer
-- [ ] Failure Analyzer (FailurePattern)
-- [ ] Variant Generator
-- [ ] Test Runner + Critic 연동
-- [ ] Prompt Registry (PromptVersion)
-- [ ] 최적화 리뷰 UI (Human-in-the-Loop)
+### Phase 5: Prompt Optimizer ✅ 완료
+- [x] Failure Analyzer (`src/optimizer/analyzer.py`)
+- [x] Variant Generator (`src/optimizer/generator.py`)
+- [x] Test Runner + Critic 연동 (`src/optimizer/runner.py`)
+- [x] Prompt Registry (`src/optimizer/registry.py`)
+- [x] CLI 도구 (`scripts/analyze_failures.py`, `scripts/run_optimization.py`)
+- [ ] Streamlit UI 통합 (Human-in-the-Loop) — 추후 구현
 
 ---
 
