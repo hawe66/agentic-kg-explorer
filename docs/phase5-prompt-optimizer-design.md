@@ -409,159 +409,128 @@ graph_retriever:
 
 ---
 
-## 7. UI Components
+## 7. UI Components (✅ 구현 완료)
+
+> 아래는 `src/ui/app.py`에 구현된 Streamlit UI 구성요소 설명이다.
 
 ### 7.1 Failure Patterns Panel (Sidebar)
 
-```python
-# In src/ui/app.py
+사이드바 "Prompt Optimizer" 섹션의 `🔧 Failure Patterns` expander 내부:
 
-with st.sidebar:
-    st.header("🔍 Failure Patterns")
+- **Analyze Failures** 버튼 → `FailureAnalyzer(threshold=0.6).analyze()` 호출
+- 탐지된 패턴 목록: agent 이름, criterion, frequency, avg score (색상 코딩)
+- 각 패턴에 **Start Optimization** 버튼 → Gate 1으로 전환
+- **📜 Version History** 버튼 → 버전 이력 패널 열기
 
-    # Show detected patterns
-    patterns = get_failure_patterns(status="detected")
+### 7.2 Gate 1: Hypothesis Review Panel
 
-    for fp in patterns:
-        with st.expander(f"{fp.agent_name}: {fp.criterion_id}"):
-            st.write(f"**Frequency:** {fp.frequency}")
-            st.write(f"**Avg Score:** {fp.avg_score:.2f}")
-            st.write("**Hypotheses:**")
-            for h in fp.root_cause_hypotheses:
-                st.write(f"- {h}")
+메인 영역에 `🔬 Gate 1: Review Hypotheses` expander로 표시:
 
-            if st.button("Start Optimization", key=f"opt_{fp.id}"):
-                st.session_state.optimizing_pattern = fp
-```
+- 패턴 요약: agent, criterion, description, frequency, avg score
+- Sample failing queries (접기 가능)
+- **편집 가능한 가설 목록** (`st.text_input` per hypothesis)
+- 새 가설 추가 입력란
+- 액션 버튼:
+  - **✅ Approve & Generate Variants** → 가설 업데이트 → `VariantGenerator.generate_variants()` → `TestRunner.run_tests()` → Gate 2 전환
+  - **❌ Reject Pattern** → 패턴 resolved 처리, 상태 초기화
 
-### 7.2 Gate 1: Hypothesis Review
+### 7.3 Gate 2: Prompt Approval Panel
 
-```python
-if st.session_state.get("optimizing_pattern"):
-    fp = st.session_state.optimizing_pattern
+메인 영역에 `🎯 Gate 2: Approve Prompt Change` expander로 표시:
 
-    st.subheader("Gate 1: Review Hypotheses")
-    st.write(f"Pattern: {fp.description}")
+- 성능 순 정렬된 변형 목록 (🏆 표시로 최고 성능 강조)
+- 각 변형:
+  - Performance delta (색상 코딩), pass rate, passed/failed count
+  - Rationale 설명
+  - **📋 View Prompt Diff** — 현재 vs 제안 프롬프트 side-by-side `st.code` 비교
+  - 비최고 변형에 **Select Variant** 버튼 (순서 재배치)
+- 액션 버튼:
+  - **✅ Approve & Activate** → `VariantGenerator.apply_variant()` → `PromptRegistry.activate_version()` → 패턴 resolved
+  - **🔄 Re-run Tests** → 동일 변형 재테스트
+  - **❌ Reject All** → 상태 초기화
 
-    # Editable hypotheses
-    edited_hypotheses = []
-    for i, h in enumerate(fp.root_cause_hypotheses):
-        edited = st.text_input(f"Hypothesis {i+1}", value=h, key=f"hyp_{i}")
-        edited_hypotheses.append(edited)
+### 7.4 Version History Panel
 
-    # Add new hypothesis
-    new_hyp = st.text_input("Add hypothesis", key="new_hyp")
-    if new_hyp:
-        edited_hypotheses.append(new_hyp)
+메인 영역에 `📜 Prompt Version History` expander로 표시:
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Approve & Generate Variants"):
-            fp.root_cause_hypotheses = edited_hypotheses
-            variants = generator.generate_variants(fp)
-            st.session_state.pending_variants = variants
-    with col2:
-        if st.button("Reject Pattern"):
-            mark_pattern_rejected(fp.id)
-            st.session_state.optimizing_pattern = None
-```
+- Agent 선택 드롭다운 (synthesizer, intent_classifier, search_planner, graph_retriever)
+- 버전별: version 번호, 🟢 ACTIVE 표시, performance delta, approved 날짜, rationale
+- 비활성 버전에 **⏪ Rollback** 버튼
+- **Close History** 버튼
 
-### 7.3 Gate 2: Prompt Approval
+### 7.5 Session State (Optimizer)
 
 ```python
-if st.session_state.get("test_results"):
-    results = st.session_state.test_results
-    best = results[0]  # Already sorted by performance
-
-    st.subheader("Gate 2: Approve Prompt Change")
-
-    # Show diff
-    st.write("**Prompt Diff:**")
-    current = registry.get_current_version(best.variant.agent_name)
-    diff = generate_diff(current.content, best.variant.prompt)
-    st.code(diff, language="diff")
-
-    # Show test results
-    st.write(f"**Performance Delta:** +{best.performance_delta:.2%}")
-    st.write("**Test Scores:**")
-    st.json(best.scores)
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("✅ Approve & Activate"):
-            registry.activate_version(best.version_id, user="streamlit")
-            st.success("New prompt activated!")
-    with col2:
-        if st.button("✏️ Edit"):
-            st.session_state.editing_prompt = best.variant
-    with col3:
-        if st.button("❌ Reject"):
-            st.session_state.test_results = None
+optimizer_patterns: list          # 탐지된 failure patterns
+optimizer_selected_pattern: obj   # Gate 1에서 선택된 패턴
+optimizer_edited_hypotheses: list # 편집된 가설 목록
+optimizer_variants: list          # 생성된 prompt variants
+optimizer_test_results: list      # 테스트 결과
+optimizer_gate: str | None        # None | "gate1" | "gate2"
+optimizer_show_history: bool      # 버전 이력 패널 표시 여부
 ```
 
 ---
 
 ## 8. 구현 순서
 
-### Step 1: Models & Registry (Day 1)
-- [ ] `src/optimizer/models.py` — Dataclasses
-- [ ] `src/optimizer/registry.py` — PromptRegistry
-- [ ] `config/prompts/` — Initial prompt files extracted from code
+### Step 1: Models & Registry ✅
+- [x] `src/optimizer/models.py` — Dataclasses
+- [x] `src/optimizer/registry.py` — PromptRegistry
+- [x] `config/prompts/` — Initial prompt files extracted from code
 
-### Step 2: Failure Analyzer (Day 2)
-- [ ] `src/optimizer/analyzer.py` — FailureAnalyzer
-- [ ] `scripts/analyze_failures.py` — CLI tool
+### Step 2: Failure Analyzer ✅
+- [x] `src/optimizer/analyzer.py` — FailureAnalyzer
+- [x] `scripts/analyze_failures.py` — CLI tool
 
-### Step 3: Variant Generator (Day 3)
-- [ ] `src/optimizer/generator.py` — VariantGenerator
-- [ ] `config/test_queries.yaml` — Test query definitions
+### Step 3: Variant Generator ✅
+- [x] `src/optimizer/generator.py` — VariantGenerator
+- [x] `config/test_queries.yaml` — Test query definitions
 
-### Step 4: Test Runner (Day 4)
-- [ ] `src/optimizer/runner.py` — TestRunner
-- [ ] Integration with Critic evaluator
+### Step 4: Test Runner ✅
+- [x] `src/optimizer/runner.py` — TestRunner
+- [x] Integration with Critic evaluator
 
-### Step 5: UI Integration (Day 5)
-- [ ] Gate 1: Hypothesis review panel
-- [ ] Gate 2: Prompt approval panel
-- [ ] Failure patterns sidebar
+### Step 5: UI Integration ✅
+- [x] Gate 1: Hypothesis review panel
+- [x] Gate 2: Prompt approval panel
+- [x] Failure patterns sidebar
+- [x] Version history panel with rollback
 
-### Step 6: Testing & Polish (Day 6)
-- [ ] End-to-end test: failure → hypothesis → variant → test → approve
-- [ ] Rollback functionality
-- [ ] Update CHANGELOG.md
+### Step 6: API Endpoints ✅
+- [x] 7 REST endpoints (`/optimizer/*`)
+- [x] Pydantic schemas (`src/api/schemas.py`)
 
 ---
 
-## 9. API Endpoints (Optional)
+## 9. API Endpoints (✅ 구현 완료)
 
-```python
-# In src/api/routes.py
+`src/api/routes.py`에 구현된 7개 엔드포인트:
 
-@router.get("/failure-patterns")
-def get_failure_patterns(status: str = None, agent: str = None):
-    """List failure patterns."""
-    pass
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/optimizer/patterns` | 실패 패턴 목록 (agent, status 필터) |
+| `POST` | `/optimizer/analyze` | 실패 패턴 탐지 트리거 |
+| `POST` | `/optimizer/patterns/{id}/approve` | Gate 1: 가설 승인 → 변형 생성 |
+| `POST` | `/optimizer/test` | 변형 테스트 실행 |
+| `POST` | `/optimizer/versions/{id}/activate` | Gate 2: 프롬프트 버전 활성화 |
+| `POST` | `/optimizer/rollback` | 이전 버전으로 롤백 |
+| `GET` | `/optimizer/versions` | Agent별 버전 이력 조회 |
 
-@router.post("/failure-patterns/{pattern_id}/approve-hypotheses")
-def approve_hypotheses(pattern_id: str, hypotheses: list[str]):
-    """Gate 1: Approve hypotheses and trigger variant generation."""
-    pass
+### Pydantic Schemas (`src/api/schemas.py`)
 
-@router.get("/prompt-versions")
-def get_prompt_versions(agent: str = None, active_only: bool = False):
-    """List prompt versions."""
-    pass
+**Request models:**
+- `AnalyzeRequest` — agent (optional), threshold (default 0.6)
+- `ApproveHypothesesRequest` — hypotheses (list[str])
+- `TestVariantsRequest` — agent_name, pattern_id, variant_ids
+- `ActivateVersionRequest` — approved_by (default "user")
+- `RollbackRequest` — agent_name, to_version (optional)
 
-@router.post("/prompt-versions/{version_id}/activate")
-def activate_prompt_version(version_id: str):
-    """Gate 2: Activate approved prompt version."""
-    pass
-
-@router.post("/prompt-versions/{version_id}/rollback")
-def rollback_prompt(agent: str, to_version: str = None):
-    """Rollback to previous prompt version."""
-    pass
-```
+**Response models:**
+- `FailurePatternsResponse` — patterns list + count
+- `GenerateVariantsResponse` — variants list + pattern_id
+- `TestResultsResponse` — results list + best_variant_id
+- `VersionHistoryResponse` — versions list + current_version + count
 
 ---
 

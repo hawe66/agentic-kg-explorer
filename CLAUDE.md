@@ -198,8 +198,8 @@ agentic-ai-kg/
 │   ├── retrieval/         ← 벡터 검색 모듈
 │   │   ├── providers/     ← Embedding provider 추상화
 │   │   └── vector_store.py ← ChromaDB wrapper
-│   ├── api/               ← FastAPI 엔드포인트 (/evaluations, /evaluation-criteria 포함)
-│   └── ui/                ← Streamlit Chat UI (evaluation scores, document upload)
+│   ├── api/               ← FastAPI 엔드포인트 (/evaluations, /evaluation-criteria, /optimizer/* 포함)
+│   └── ui/                ← Streamlit Chat UI (evaluation, document upload, optimizer Gate 1/2, version history)
 ├── scripts/
 │   ├── generate_entity_catalog.py ← KG → entity_catalog.json 생성
 │   ├── generate_embeddings.py     ← KG 노드 임베딩 → ChromaDB
@@ -262,7 +262,8 @@ agentic-ai-kg/
 - [x] Test Runner + Critic 연동 (`src/optimizer/runner.py`)
 - [x] Prompt Registry (`src/optimizer/registry.py`)
 - [x] CLI 도구 (`scripts/analyze_failures.py`, `scripts/run_optimization.py`)
-- [ ] Streamlit UI 통합 (Human-in-the-Loop) — 추후 구현
+- [x] Streamlit UI 통합 (Human-in-the-Loop): Gate 1/2, Version History, Sidebar
+- [x] API 엔드포인트 7개 (`/optimizer/*`) + Pydantic schemas
 
 ---
 

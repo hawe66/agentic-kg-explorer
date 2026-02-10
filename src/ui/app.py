@@ -111,6 +111,31 @@ if "pending_document" not in st.session_state:
 if "document_links" not in st.session_state:
     st.session_state.document_links = None
 
+if "last_kg_results" not in st.session_state:
+    st.session_state.last_kg_results = None
+
+# Optimizer state
+if "optimizer_patterns" not in st.session_state:
+    st.session_state.optimizer_patterns = []
+
+if "optimizer_selected_pattern" not in st.session_state:
+    st.session_state.optimizer_selected_pattern = None
+
+if "optimizer_edited_hypotheses" not in st.session_state:
+    st.session_state.optimizer_edited_hypotheses = []
+
+if "optimizer_variants" not in st.session_state:
+    st.session_state.optimizer_variants = []
+
+if "optimizer_test_results" not in st.session_state:
+    st.session_state.optimizer_test_results = []
+
+if "optimizer_gate" not in st.session_state:
+    st.session_state.optimizer_gate = None  # None | "gate1" | "gate2"
+
+if "optimizer_show_history" not in st.session_state:
+    st.session_state.optimizer_show_history = False
+
 
 # ---------------------------------------------------------------------------
 # Graph Visualization Helpers
@@ -125,6 +150,92 @@ NODE_COLORS = {
     "StandardVersion": "#BFCBA8",
     "Document": "#DDA0DD",       # Plum
 }
+
+def _extract_node_ids(kg_results: list[dict]) -> list[str]:
+    """Extract unique node IDs from serialized kg_results."""
+    ids = set()
+    for record in kg_results:
+        for key, value in record.items():
+            _collect_ids(value, ids)
+    return list(ids)
+
+
+def _collect_ids(value, ids: set):
+    """Recursively collect node IDs from nested structures."""
+    if isinstance(value, dict):
+        if "labels" in value and "properties" in value:
+            node_id = value["properties"].get("id")
+            if node_id:
+                ids.add(node_id)
+        else:
+            for v in value.values():
+                _collect_ids(v, ids)
+    elif isinstance(value, list):
+        for item in value:
+            _collect_ids(item, ids)
+
+
+def fetch_kg_subgraph_for_ids(node_ids: list[str], max_nodes: int = 50) -> tuple[list, list]:
+    """Fetch subgraph containing the given node IDs and their mutual relationships."""
+    nodes = []
+    edges = []
+    seen_nodes = set()
+    seen_edges = set()
+
+    if not node_ids:
+        return nodes, edges
+
+    try:
+        with Neo4jClient() as client:
+            query = """
+            MATCH (n) WHERE n.id IN $ids
+            OPTIONAL MATCH (n)-[r]-(m) WHERE m.id IN $ids
+            RETURN n, r, m
+            """
+            raw_results = client.run_cypher(query, {"ids": node_ids[:max_nodes]})
+            results = _serialize_neo4j_results(raw_results)
+
+            for record in results:
+                for key, value in record.items():
+                    if value is None:
+                        continue
+
+                    if isinstance(value, dict) and "labels" in value:
+                        props = value.get("properties", {})
+                        node_id = props.get("id", "")
+                        if node_id and node_id not in seen_nodes:
+                            label = value["labels"][0] if value["labels"] else "Unknown"
+                            nodes.append(Node(
+                                id=node_id,
+                                label=props.get("name", node_id)[:20],
+                                size=25 if label == "Principle" else 20,
+                                color=NODE_COLORS.get(label, "#888888"),
+                                title=f"{label}: {props.get('name', node_id)}\n{props.get('description', '')[:100]}..."
+                            ))
+                            seen_nodes.add(node_id)
+
+                    elif isinstance(value, dict) and "type" in value and "start_node" in value:
+                        rel_type = value.get("type", "")
+                        start_props = value.get("start_node", {}).get("properties", {})
+                        end_props = value.get("end_node", {}).get("properties", {})
+                        start_id = start_props.get("id")
+                        end_id = end_props.get("id")
+                        if start_id and end_id:
+                            edge_key = (start_id, end_id, rel_type)
+                            if edge_key not in seen_edges:
+                                edges.append(Edge(
+                                    source=start_id,
+                                    target=end_id,
+                                    label=rel_type[:10],
+                                    color="#888888"
+                                ))
+                                seen_edges.add(edge_key)
+
+    except Exception as e:
+        st.error(f"Failed to fetch query subgraph: {e}")
+
+    return nodes[:max_nodes], edges
+
 
 def fetch_kg_subgraph(center_id: str = None, max_nodes: int = 50) -> tuple[list, list]:
     """Fetch a subgraph from Neo4j centered on an entity or overview."""
@@ -374,11 +485,57 @@ with st.sidebar:
 
     st.divider()
 
+    # Prompt Optimizer Section
+    st.header("Prompt Optimizer")
+    with st.expander("🔧 Failure Patterns", expanded=False):
+        # Analyze button
+        if st.button("Analyze Failures", key="analyze_failures"):
+            with st.spinner("Analyzing evaluations..."):
+                try:
+                    from src.optimizer import FailureAnalyzer
+                    analyzer = FailureAnalyzer(threshold=0.6)
+                    patterns = analyzer.analyze()
+                    st.session_state.optimizer_patterns = patterns
+                    if patterns:
+                        st.success(f"Found {len(patterns)} failure pattern(s)")
+                    else:
+                        st.info("No failure patterns detected")
+                except Exception as e:
+                    st.error(f"Analysis failed: {e}")
+
+        # Show patterns
+        if st.session_state.optimizer_patterns:
+            for i, pattern in enumerate(st.session_state.optimizer_patterns):
+                score_color = "green" if pattern.avg_score >= 0.7 else "orange" if pattern.avg_score >= 0.5 else "red"
+                st.markdown(
+                    f"**{pattern.agent_name}** / {pattern.criterion_id.split(':')[-1]}  \n"
+                    f"Freq: {pattern.frequency} | "
+                    f"<span style='color:{score_color}'>Avg: {pattern.avg_score:.2f}</span>",
+                    unsafe_allow_html=True
+                )
+                if st.button("Start Optimization", key=f"opt_pattern_{i}"):
+                    st.session_state.optimizer_selected_pattern = pattern
+                    st.session_state.optimizer_edited_hypotheses = list(pattern.root_cause_hypotheses)
+                    st.session_state.optimizer_gate = "gate1"
+                    st.rerun()
+                st.markdown("---")
+
+        # Version history button
+        if st.button("📜 Version History", key="version_history"):
+            st.session_state.optimizer_show_history = True
+            st.rerun()
+
+    st.divider()
+
     if st.button("Clear Chat"):
         st.session_state.messages = []
         st.session_state.last_web_results = []
+        st.session_state.last_kg_results = None
         st.session_state.pending_proposal = None
         st.session_state.graph_data = None
+        st.session_state.optimizer_gate = None
+        st.session_state.optimizer_selected_pattern = None
+        st.session_state.optimizer_show_history = False
         st.rerun()
 
 
@@ -444,7 +601,8 @@ if prompt:
                 confidence = result.get("confidence")
                 web_results = result.get("web_results") or []
 
-                # Store web results for "Add to KG" feature
+                # Store results for visualization and "Add to KG"
+                st.session_state.last_kg_results = result.get("kg_results")
                 st.session_state.last_web_results = web_results
 
                 st.markdown(answer)
@@ -824,11 +982,14 @@ if st.session_state.show_graph:
     # Fetch or build graph data
     nodes, edges = [], []
 
-    if graph_mode == "From Last Query" and st.session_state.messages:
-        # Try to get the last result from state (would need to store raw results)
-        # For now, show a message that query results aren't stored for graph
-        st.info("Query result visualization requires raw KG results. Use 'Overview' mode for now.")
-        nodes, edges = fetch_kg_subgraph(max_nodes=max_nodes)
+    if graph_mode == "From Last Query" and st.session_state.last_kg_results:
+        node_ids = _extract_node_ids(st.session_state.last_kg_results)
+        if node_ids:
+            nodes, edges = fetch_kg_subgraph_for_ids(node_ids, max_nodes=max_nodes)
+        else:
+            st.info("No graph entities found in last query results.")
+    elif graph_mode == "From Last Query":
+        st.info("Run a query first to see its graph.")
     else:
         # Overview mode - fetch from KG
         nodes, edges = fetch_kg_subgraph(max_nodes=max_nodes)
@@ -871,3 +1032,291 @@ if st.session_state.show_graph:
         st.caption(f"Showing {len(nodes)} nodes, {len(edges)} edges")
     else:
         st.warning("No graph data available. Make sure Neo4j is connected.")
+
+
+# ---------------------------------------------------------------------------
+# Gate 1: Hypothesis Review Panel
+# ---------------------------------------------------------------------------
+
+if st.session_state.optimizer_gate == "gate1" and st.session_state.optimizer_selected_pattern:
+    pattern = st.session_state.optimizer_selected_pattern
+
+    with st.expander("🔬 Gate 1: Review Hypotheses", expanded=True):
+        st.markdown(f"**Pattern:** {pattern.agent_name} / {pattern.criterion_id}")
+        st.markdown(f"**Description:** {pattern.description}")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Frequency", pattern.frequency)
+        with col2:
+            score_color = "green" if pattern.avg_score >= 0.7 else "orange" if pattern.avg_score >= 0.5 else "red"
+            st.markdown(f"**Avg Score:** <span style='color:{score_color}'>{pattern.avg_score:.2f}</span>", unsafe_allow_html=True)
+
+        # Sample queries
+        if pattern.sample_queries:
+            with st.expander("📝 Sample Failing Queries", expanded=False):
+                for q in pattern.sample_queries[:5]:
+                    st.write(f"- {q}")
+
+        st.markdown("### Root Cause Hypotheses")
+        st.caption("Edit or add hypotheses before generating variants")
+
+        # Editable hypotheses
+        edited_hypotheses = []
+        for i, hyp in enumerate(st.session_state.optimizer_edited_hypotheses):
+            edited = st.text_input(
+                f"Hypothesis {i+1}",
+                value=hyp,
+                key=f"hyp_input_{i}"
+            )
+            if edited.strip():
+                edited_hypotheses.append(edited.strip())
+
+        # Add new hypothesis
+        new_hyp = st.text_input("Add new hypothesis", key="new_hypothesis", placeholder="Enter a new hypothesis...")
+        if new_hyp.strip():
+            edited_hypotheses.append(new_hyp.strip())
+
+        st.session_state.optimizer_edited_hypotheses = edited_hypotheses
+
+        # Action buttons
+        st.markdown("---")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✅ Approve & Generate Variants", type="primary", key="gate1_approve"):
+                if not edited_hypotheses:
+                    st.error("Please provide at least one hypothesis")
+                else:
+                    with st.spinner("Generating variants..."):
+                        try:
+                            from src.optimizer import VariantGenerator, get_analyzer
+
+                            # Update pattern with edited hypotheses
+                            pattern.root_cause_hypotheses = edited_hypotheses
+                            analyzer = get_analyzer()
+                            analyzer.update_pattern_status(pattern.id, "reviewing")
+
+                            # Generate variants
+                            generator = VariantGenerator()
+                            variants = generator.generate_variants(pattern, num_variants=3)
+                            st.session_state.optimizer_variants = variants
+
+                            # Run tests
+                            with st.spinner("Running tests on variants..."):
+                                from src.optimizer import TestRunner
+                                runner = TestRunner()
+                                results = runner.run_tests(pattern.agent_name, variants)
+                                st.session_state.optimizer_test_results = results
+
+                            st.session_state.optimizer_gate = "gate2"
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to generate variants: {e}")
+
+        with col2:
+            if st.button("❌ Reject Pattern", key="gate1_reject"):
+                try:
+                    from src.optimizer import get_analyzer
+                    analyzer = get_analyzer()
+                    analyzer.update_pattern_status(pattern.id, "resolved")
+                except Exception:
+                    pass
+                st.session_state.optimizer_gate = None
+                st.session_state.optimizer_selected_pattern = None
+                st.session_state.optimizer_edited_hypotheses = []
+                st.rerun()
+
+
+# ---------------------------------------------------------------------------
+# Gate 2: Prompt Approval Panel
+# ---------------------------------------------------------------------------
+
+if st.session_state.optimizer_gate == "gate2" and st.session_state.optimizer_test_results:
+    results = st.session_state.optimizer_test_results
+    pattern = st.session_state.optimizer_selected_pattern
+
+    with st.expander("🎯 Gate 2: Approve Prompt Change", expanded=True):
+        st.markdown(f"**Agent:** {pattern.agent_name}")
+        st.markdown("### Test Results (Ranked by Performance)")
+
+        # Show all variants with results
+        for i, result in enumerate(results):
+            is_best = i == 0
+            variant = result.variant
+
+            with st.container():
+                # Header
+                if is_best:
+                    st.markdown(f"#### 🏆 Variant {i+1} (Best)")
+                else:
+                    st.markdown(f"#### Variant {i+1}")
+
+                # Metrics
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    delta_color = "green" if result.performance_delta > 0 else "red" if result.performance_delta < 0 else "gray"
+                    st.markdown(f"**Delta:** <span style='color:{delta_color}'>{result.performance_delta:+.1%}</span>", unsafe_allow_html=True)
+                with col2:
+                    st.metric("Pass Rate", f"{result.pass_rate:.0%}")
+                with col3:
+                    st.write(f"Passed: {result.passed_count}/{result.passed_count + result.failed_count}")
+
+                # Rationale
+                st.markdown(f"**Rationale:** {variant.rationale}")
+
+                # Diff view (collapsed)
+                with st.expander("📋 View Prompt Diff", expanded=is_best):
+                    try:
+                        from src.optimizer import VariantGenerator, get_registry
+                        generator = VariantGenerator()
+                        registry = get_registry()
+
+                        current_version = registry.get_current_version(variant.agent_name)
+                        if current_version:
+                            current_prompt = current_version.prompt_content
+                        else:
+                            current_prompt = generator._load_current_prompt(variant.agent_name)
+
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.markdown("**Current Prompt**")
+                            st.code(current_prompt[:1000] + "..." if len(current_prompt) > 1000 else current_prompt, language="text")
+                        with col2:
+                            st.markdown("**Proposed Prompt**")
+                            st.code(variant.prompt_content[:1000] + "..." if len(variant.prompt_content) > 1000 else variant.prompt_content, language="text")
+                    except Exception as e:
+                        st.error(f"Could not load prompts: {e}")
+
+                # Select button for non-best variants
+                if not is_best:
+                    if st.button(f"Select Variant {i+1}", key=f"select_var_{i}"):
+                        # Move this variant to the front
+                        st.session_state.optimizer_test_results = [result] + [r for r in results if r != result]
+                        st.rerun()
+
+                st.markdown("---")
+
+        # Action buttons for best variant
+        st.markdown("### Actions")
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            if st.button("✅ Approve & Activate", type="primary", key="gate2_approve"):
+                best_result = results[0]
+                with st.spinner("Activating new prompt..."):
+                    try:
+                        from src.optimizer import VariantGenerator, get_registry, get_analyzer
+
+                        generator = VariantGenerator()
+                        registry = get_registry()
+                        analyzer = get_analyzer()
+
+                        # Apply the variant (creates new version)
+                        version_id = generator.apply_variant(
+                            best_result.variant,
+                            test_results=best_result.scores,
+                            performance_delta=best_result.performance_delta,
+                        )
+
+                        # Activate the version
+                        registry.activate_version(version_id, approved_by="streamlit_user")
+
+                        # Mark pattern as resolved
+                        analyzer.update_pattern_status(pattern.id, "resolved")
+
+                        st.success(f"Activated new prompt version: {version_id}")
+
+                        # Clear optimizer state
+                        st.session_state.optimizer_gate = None
+                        st.session_state.optimizer_selected_pattern = None
+                        st.session_state.optimizer_variants = []
+                        st.session_state.optimizer_test_results = []
+                        st.session_state.optimizer_patterns = []
+
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Activation failed: {e}")
+
+        with col2:
+            if st.button("🔄 Re-run Tests", key="gate2_retest"):
+                with st.spinner("Re-running tests..."):
+                    try:
+                        from src.optimizer import TestRunner
+                        runner = TestRunner()
+                        results = runner.run_tests(pattern.agent_name, st.session_state.optimizer_variants)
+                        st.session_state.optimizer_test_results = results
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Re-test failed: {e}")
+
+        with col3:
+            if st.button("❌ Reject All", key="gate2_reject"):
+                st.session_state.optimizer_gate = None
+                st.session_state.optimizer_selected_pattern = None
+                st.session_state.optimizer_variants = []
+                st.session_state.optimizer_test_results = []
+                st.rerun()
+
+
+# ---------------------------------------------------------------------------
+# Version History Panel
+# ---------------------------------------------------------------------------
+
+if st.session_state.optimizer_show_history:
+    with st.expander("📜 Prompt Version History", expanded=True):
+        agents = ["synthesizer", "intent_classifier", "search_planner", "graph_retriever"]
+        selected_agent = st.selectbox("Select Agent", agents, key="history_agent")
+
+        try:
+            from src.optimizer import get_registry
+            registry = get_registry()
+            versions = registry.get_version_history(selected_agent, limit=10)
+            current = registry.get_current_version(selected_agent)
+
+            if versions:
+                for v in versions:
+                    is_active = v.is_active
+
+                    with st.container():
+                        # Version header
+                        if is_active:
+                            st.markdown(f"#### v{v.version} 🟢 ACTIVE")
+                        else:
+                            st.markdown(f"#### v{v.version}")
+
+                        # Details
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            delta_color = "green" if v.performance_delta > 0 else "red" if v.performance_delta < 0 else "gray"
+                            st.markdown(f"**Delta:** <span style='color:{delta_color}'>{v.performance_delta:+.1%}</span>", unsafe_allow_html=True)
+                        with col2:
+                            if v.approved_at:
+                                st.write(f"Approved: {v.approved_at.strftime('%Y-%m-%d %H:%M')}")
+
+                        st.markdown(f"**Rationale:** {v.rationale}")
+
+                        # Rollback button (not for active version)
+                        if not is_active:
+                            if st.button(f"⏪ Rollback to v{v.version}", key=f"rollback_{v.id}"):
+                                with st.spinner("Rolling back..."):
+                                    try:
+                                        success = registry.rollback(selected_agent, to_version=v.id)
+                                        if success:
+                                            st.success(f"Rolled back to v{v.version}")
+                                            st.rerun()
+                                        else:
+                                            st.error("Rollback failed")
+                                    except Exception as e:
+                                        st.error(f"Rollback failed: {e}")
+
+                        st.markdown("---")
+            else:
+                st.info(f"No version history for {selected_agent}")
+
+        except Exception as e:
+            st.error(f"Failed to load version history: {e}")
+
+        # Close button
+        if st.button("Close History", key="close_history"):
+            st.session_state.optimizer_show_history = False
+            st.rerun()

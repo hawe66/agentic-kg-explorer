@@ -178,3 +178,111 @@ class ApproveNodeResponse(BaseModel):
     success: bool
     node_id: str
     message: str
+
+
+# ---------------------------------------------------------------------------
+# Optimizer Endpoints
+# ---------------------------------------------------------------------------
+
+class AnalyzeRequest(BaseModel):
+    """Request to trigger failure analysis."""
+    agent: str | None = Field(None, description="Filter by agent name")
+    threshold: float = Field(0.6, description="Score threshold for failures")
+
+
+class ApproveHypothesesRequest(BaseModel):
+    """Request to approve hypotheses and generate variants."""
+    hypotheses: list[str] = Field(..., min_length=1, description="Approved/edited hypotheses")
+
+
+class TestVariantsRequest(BaseModel):
+    """Request to test prompt variants."""
+    agent_name: str
+    pattern_id: str
+    variant_ids: list[str] = Field(default_factory=list, description="Variant IDs to test")
+
+
+class ActivateVersionRequest(BaseModel):
+    """Request to activate a prompt version."""
+    approved_by: str = Field("user", description="User who approved")
+
+
+class RollbackRequest(BaseModel):
+    """Request to rollback a prompt version."""
+    agent_name: str
+    to_version: str | None = Field(None, description="Specific version or None for previous")
+
+
+class FailurePatternItem(BaseModel):
+    """Failure pattern response item."""
+    id: str
+    agent_name: str
+    criterion_id: str
+    pattern_type: str
+    description: str
+    frequency: int
+    avg_score: float
+    sample_queries: list[str] = []
+    root_cause_hypotheses: list[str] = []
+    status: str
+
+
+class FailurePatternsResponse(BaseModel):
+    """List of failure patterns."""
+    patterns: list[FailurePatternItem]
+    count: int
+
+
+class PromptVariantItem(BaseModel):
+    """Generated prompt variant."""
+    id: str
+    agent_name: str
+    prompt_content: str
+    rationale: str
+    addresses_hypotheses: list[int] = []
+    failure_pattern_id: str
+
+
+class GenerateVariantsResponse(BaseModel):
+    """Response with generated variants."""
+    variants: list[PromptVariantItem]
+    pattern_id: str
+
+
+class TestResultItem(BaseModel):
+    """Test result for a variant."""
+    variant_id: str
+    scores: dict[str, float] = {}
+    baseline_scores: dict[str, float] = {}
+    performance_delta: float
+    pass_rate: float
+    passed_count: int
+    failed_count: int
+
+
+class TestResultsResponse(BaseModel):
+    """Response with test results."""
+    results: list[TestResultItem]
+    best_variant_id: str | None
+
+
+class PromptVersionItem(BaseModel):
+    """Prompt version history item."""
+    id: str
+    agent_name: str
+    version: str
+    is_active: bool
+    user_approved: bool
+    performance_delta: float
+    rationale: str
+    parent_version: str | None
+    approved_by: str | None
+    approved_at: str | None
+    created_at: str
+
+
+class VersionHistoryResponse(BaseModel):
+    """Version history response."""
+    versions: list[PromptVersionItem]
+    current_version: str | None
+    count: int

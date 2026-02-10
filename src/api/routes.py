@@ -22,6 +22,20 @@ from .schemas import (
     ProposedNodeResponse,
     ApproveNodeRequest,
     ApproveNodeResponse,
+    # Optimizer schemas
+    AnalyzeRequest,
+    ApproveHypothesesRequest,
+    TestVariantsRequest,
+    ActivateVersionRequest,
+    RollbackRequest,
+    FailurePatternItem,
+    FailurePatternsResponse,
+    PromptVariantItem,
+    GenerateVariantsResponse,
+    TestResultItem,
+    TestResultsResponse,
+    PromptVersionItem,
+    VersionHistoryResponse,
 )
 
 router = APIRouter()
@@ -398,3 +412,279 @@ def get_evaluation_criteria(agent: str | None = None):
 
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Neo4j unavailable: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Optimizer Endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/optimizer/patterns", response_model=FailurePatternsResponse)
+def get_failure_patterns(
+    agent: str | None = None,
+    status: str | None = None,
+    limit: int = 20,
+):
+    """Get detected failure patterns.
+
+    Args:
+        agent: Filter by agent name.
+        status: Filter by status (detected, reviewing, addressing, resolved).
+        limit: Maximum patterns to return.
+    """
+    from src.optimizer import get_analyzer
+
+    try:
+        analyzer = get_analyzer()
+        patterns = analyzer.get_patterns(status=status, agent_name=agent)
+        patterns = patterns[:limit]
+
+        return FailurePatternsResponse(
+            patterns=[
+                FailurePatternItem(
+                    id=p.id,
+                    agent_name=p.agent_name,
+                    criterion_id=p.criterion_id,
+                    pattern_type=p.pattern_type,
+                    description=p.description,
+                    frequency=p.frequency,
+                    avg_score=p.avg_score,
+                    sample_queries=p.sample_queries[:5],
+                    root_cause_hypotheses=p.root_cause_hypotheses,
+                    status=p.status,
+                )
+                for p in patterns
+            ],
+            count=len(patterns),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get patterns: {e}")
+
+
+@router.post("/optimizer/analyze", response_model=FailurePatternsResponse)
+def analyze_failures(request: AnalyzeRequest):
+    """Trigger failure pattern detection.
+
+    Args:
+        agent: Filter by agent name.
+        threshold: Score threshold for failures (default 0.6).
+    """
+    from src.optimizer import FailureAnalyzer
+
+    try:
+        analyzer = FailureAnalyzer(threshold=request.threshold)
+        patterns = analyzer.analyze(agent_name=request.agent)
+
+        return FailurePatternsResponse(
+            patterns=[
+                FailurePatternItem(
+                    id=p.id,
+                    agent_name=p.agent_name,
+                    criterion_id=p.criterion_id,
+                    pattern_type=p.pattern_type,
+                    description=p.description,
+                    frequency=p.frequency,
+                    avg_score=p.avg_score,
+                    sample_queries=p.sample_queries[:5],
+                    root_cause_hypotheses=p.root_cause_hypotheses,
+                    status=p.status,
+                )
+                for p in patterns
+            ],
+            count=len(patterns),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
+
+
+@router.post("/optimizer/patterns/{pattern_id}/approve", response_model=GenerateVariantsResponse)
+def approve_hypotheses(pattern_id: str, request: ApproveHypothesesRequest):
+    """Approve hypotheses and generate prompt variants (Gate 1 -> Testing).
+
+    Args:
+        pattern_id: The failure pattern ID.
+        hypotheses: List of approved/edited hypotheses.
+    """
+    from src.optimizer import get_analyzer, VariantGenerator
+
+    try:
+        analyzer = get_analyzer()
+        patterns = analyzer.get_patterns()
+        pattern = next((p for p in patterns if p.id == pattern_id), None)
+
+        if not pattern:
+            raise HTTPException(status_code=404, detail=f"Pattern not found: {pattern_id}")
+
+        # Update pattern with edited hypotheses
+        pattern.root_cause_hypotheses = request.hypotheses
+        analyzer.update_pattern_status(pattern_id, "reviewing")
+
+        # Generate variants
+        generator = VariantGenerator()
+        variants = generator.generate_variants(pattern, num_variants=3)
+
+        return GenerateVariantsResponse(
+            variants=[
+                PromptVariantItem(
+                    id=v.id,
+                    agent_name=v.agent_name,
+                    prompt_content=v.prompt_content,
+                    rationale=v.rationale,
+                    addresses_hypotheses=v.addresses_hypotheses,
+                    failure_pattern_id=v.failure_pattern_id,
+                )
+                for v in variants
+            ],
+            pattern_id=pattern_id,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Variant generation failed: {e}")
+
+
+@router.post("/optimizer/test", response_model=TestResultsResponse)
+def test_variants(request: TestVariantsRequest):
+    """Run tests on prompt variants.
+
+    Args:
+        agent_name: Agent being tested.
+        pattern_id: The failure pattern ID.
+        variant_ids: List of variant IDs to test.
+    """
+    from src.optimizer import TestRunner, get_analyzer, VariantGenerator
+
+    try:
+        # Get the pattern and variants
+        analyzer = get_analyzer()
+        patterns = analyzer.get_patterns()
+        pattern = next((p for p in patterns if p.id == request.pattern_id), None)
+
+        if not pattern:
+            raise HTTPException(status_code=404, detail=f"Pattern not found: {request.pattern_id}")
+
+        # Regenerate variants for testing (or use cached)
+        generator = VariantGenerator()
+        variants = generator.generate_variants(pattern, num_variants=3)
+
+        # Run tests
+        runner = TestRunner()
+        results = runner.run_tests(request.agent_name, variants)
+
+        # Update pattern status
+        analyzer.update_pattern_status(request.pattern_id, "addressing")
+
+        return TestResultsResponse(
+            results=[
+                TestResultItem(
+                    variant_id=r.variant.id,
+                    scores=r.scores,
+                    baseline_scores=r.baseline_scores,
+                    performance_delta=r.performance_delta,
+                    pass_rate=r.pass_rate,
+                    passed_count=r.passed_count,
+                    failed_count=r.failed_count,
+                )
+                for r in results
+            ],
+            best_variant_id=results[0].variant.id if results else None,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Testing failed: {e}")
+
+
+@router.post("/optimizer/versions/{version_id}/activate")
+def activate_version(version_id: str, request: ActivateVersionRequest):
+    """Activate a prompt version (Gate 2 approval).
+
+    Args:
+        version_id: The version ID to activate.
+        approved_by: User who approved.
+    """
+    from src.optimizer import get_registry
+
+    try:
+        registry = get_registry()
+        success = registry.activate_version(version_id, approved_by=request.approved_by)
+
+        if not success:
+            raise HTTPException(status_code=400, detail=f"Failed to activate version: {version_id}")
+
+        return {
+            "success": True,
+            "version_id": version_id,
+            "message": f"Version {version_id} activated",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Activation failed: {e}")
+
+
+@router.post("/optimizer/rollback")
+def rollback_version(request: RollbackRequest):
+    """Rollback to a previous prompt version.
+
+    Args:
+        agent_name: Agent to rollback.
+        to_version: Specific version ID or None for previous.
+    """
+    from src.optimizer import get_registry
+
+    try:
+        registry = get_registry()
+        success = registry.rollback(request.agent_name, to_version=request.to_version)
+
+        if not success:
+            raise HTTPException(status_code=400, detail="Rollback failed")
+
+        current = registry.get_current_version(request.agent_name)
+        return {
+            "success": True,
+            "current_version": current.id if current else None,
+            "message": f"Rolled back to {current.version if current else 'initial'}",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Rollback failed: {e}")
+
+
+@router.get("/optimizer/versions", response_model=VersionHistoryResponse)
+def get_versions(agent: str, limit: int = 10):
+    """Get version history for an agent.
+
+    Args:
+        agent: Agent name.
+        limit: Maximum versions to return.
+    """
+    from src.optimizer import get_registry
+
+    try:
+        registry = get_registry()
+        versions = registry.get_version_history(agent, limit=limit)
+        current = registry.get_current_version(agent)
+
+        return VersionHistoryResponse(
+            versions=[
+                PromptVersionItem(
+                    id=v.id,
+                    agent_name=v.agent_name,
+                    version=v.version,
+                    is_active=v.is_active,
+                    user_approved=v.user_approved,
+                    performance_delta=v.performance_delta,
+                    rationale=v.rationale,
+                    parent_version=v.parent_version,
+                    approved_by=v.approved_by,
+                    approved_at=v.approved_at.isoformat() if v.approved_at else None,
+                    created_at=v.created_at.isoformat() if v.created_at else "",
+                )
+                for v in versions
+            ],
+            current_version=current.id if current else None,
+            count=len(versions),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get versions: {e}")

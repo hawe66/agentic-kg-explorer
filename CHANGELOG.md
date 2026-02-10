@@ -455,6 +455,56 @@ poetry run python scripts/test_agent.py --query "What are the latest agent frame
 
 ## [Unreleased]
 
+### Phase 5b: Optimizer UI/API Integration + Graph Viz Fix
+
+#### Added
+
+**Optimizer API Endpoints** (`src/api/routes.py`)
+- `GET /optimizer/patterns` — List failure patterns (filter by agent, status)
+- `POST /optimizer/analyze` — Trigger failure pattern detection
+- `POST /optimizer/patterns/{id}/approve` — Gate 1: Approve hypotheses → generate variants
+- `POST /optimizer/test` — Run tests on prompt variants
+- `POST /optimizer/versions/{id}/activate` — Gate 2: Activate prompt version
+- `POST /optimizer/rollback` — Rollback to previous version
+- `GET /optimizer/versions` — Version history per agent
+
+**Optimizer Pydantic Schemas** (`src/api/schemas.py`)
+- Request models: `AnalyzeRequest`, `ApproveHypothesesRequest`, `TestVariantsRequest`, `ActivateVersionRequest`, `RollbackRequest`
+- Response models: `FailurePatternsResponse`, `GenerateVariantsResponse`, `TestResultsResponse`, `VersionHistoryResponse`
+
+**Streamlit Optimizer UI** (`src/ui/app.py`)
+- Sidebar: "Prompt Optimizer" section with Analyze Failures button, pattern list, version history
+- Gate 1 Panel: Editable hypotheses, approve/reject buttons
+- Gate 2 Panel: Test results ranked by performance, side-by-side prompt diff, approve/retest/reject
+- Version History Panel: Per-agent version list with rollback capability
+
+#### Fixed
+
+**Graph Visualization: "From Last Query" mode** (`src/ui/app.py`)
+- Previously showed disabled message: "Query result visualization requires raw KG results"
+- Now stores `kg_results` from each query in session state
+- Extracts entity IDs from results, fetches their subgraph with actual Neo4j relationships
+- Added `_extract_node_ids()`, `_collect_ids()`, `fetch_kg_subgraph_for_ids()` helpers
+- Overview mode remains unchanged
+
+#### Removed
+
+**Redundant documentation files**
+- `docs/comments.md` — Old brainstorming notes (all items resolved)
+- `docs/FEEDBACK.md` — Feedback items (all resolved)
+- `docs/sync_input_problem.md` — Phase 3b sync discussion (implemented in `src/ingestion/`)
+- `docs/verify_queries.md` — Test queries (superseded by `config/test_queries.yaml`)
+- `src/agents/README.md` — Outdated agent docs (4 intents, missing Phases 4-5)
+
+#### Changed
+
+**Documentation updates**
+- `README.md` — Complete rewrite reflecting all completed phases
+- `CLAUDE.md` — Phase 5 roadmap marked fully complete
+- `docs/phase5-prompt-optimizer-design.md` — Sections 7-9 updated with actual implementation
+
+---
+
 ### P0 Fixes: Confidence & Intent Redesign (In Progress)
 
 #### Added
